@@ -5,6 +5,10 @@ sylius:
                 index:
                     title: "Synchronisation | Pricee.io"
                     subtitle: "Synchroniser les produits par catégories"
+                    api_key_title: "Clé API"
+                    client_id: "Client ID"
+                    key: "Clé secrète"
+                    categories_title: "Catégories"
                     sync_button: "Synchroniser les catégories sélectionnées"
                     loading: "Chargement…"
                     synced_products: "produits synchronisés avec succès."

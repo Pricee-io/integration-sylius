@@ -7,13 +7,32 @@
         <form id="priceeio-sync-form">
             <input type="hidden" name="_token" value="{{ csrf_token('priceeio_categories') }}">
 
+            <h4>{{ 'sylius.ui.admin.priceeio_sync_plugin.index.api_key_title'|trans }}</h4>
+            <hr class="mt-0 mb-4">
+
+            <!-- Client ID -->
+            <div class="mb-3">
+                <label for="clientId" class="form-label">{{ 'sylius.ui.admin.priceeio_sync_plugin.index.client_id'|trans }}</label>
+                <input type="text" class="form-control" id="clientId" name="clientId" autocomplete="off" required>
+            </div>
+
+            <!-- Key -->
+            <div class="mb-3">
+                <label for="key" class="form-label">{{ 'sylius.ui.admin.priceeio_sync_plugin.index.key'|trans }}</label>
+                <input type="password" class="form-control" id="key" name="key" autocomplete="new-password" required>
+            </div>
+
+            <!-- Categories -->
+            <h4>{{ 'sylius.ui.admin.priceeio_sync_plugin.index.categories_title'|trans }}</h4>
+            <hr class="mt-0 mb-4">
+
             <div class="mb-3">
                 {% for category in categories %}
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox"
-                            name="categories[]"
-                            value="{{ category.code }}"
-                            id="category-{{ category.code }}">
+                               name="categories[]"
+                               value="{{ category.code }}"
+                               id="category-{{ category.code }}">
                         <label class="form-check-label" for="category-{{ category.code }}">
                             {{ category.name }}
                         </label>

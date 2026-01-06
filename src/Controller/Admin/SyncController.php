@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PriceeIO\SyncPlugin\Controller\Admin;
 
+use PriceeIO\SyncPlugin\Service\SyncService;
 use Sylius\Component\Core\Repository\ProductRepositoryInterface;
 use Sylius\Component\Taxonomy\Repository\TaxonRepositoryInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -16,7 +17,7 @@ final class SyncController extends AbstractController
     public function __construct(
         private TaxonRepositoryInterface $taxonRepository,
         private ProductRepositoryInterface $productRepository,
-        // private SyncService $syncService
+        private SyncService $syncService
     ) {
     }
 
@@ -44,14 +45,22 @@ final class SyncController extends AbstractController
         }
 
         $categoryCodes = $request->request->all('categories');
+        $clientId = trim($request->request->get('clientId', ''));
+        $key = trim($request->request->get('key', ''));
 
         if (empty($categoryCodes)) {
             return new JsonResponse([
-                'error' => 'No categories selected',
+                'error' => 'No categories selected.',
             ], 400);
         }
 
-        // 🔹 Resolve products
+        if (!$clientId || !$key) {
+            return new JsonResponse([
+                'error' => 'Client ID and API Key are required.',
+            ], 400);
+        }
+
+        // 🔹 Resolve products from selected categories
         $qb = $this->productRepository->createQueryBuilder('p')
             ->join('p.productTaxons', 'pt')
             ->join('pt.taxon', 't')
@@ -59,16 +68,17 @@ final class SyncController extends AbstractController
             ->andWhere('p.enabled = true')
             ->setParameter('codes', $categoryCodes);
 
-        // 🔹 Plan limit
-        $planLimit = 100;
+        $planLimit = 100; // TODO: get from plan service
+        $products = $qb->setMaxResults($planLimit)->getQuery()->getResult();
 
-        $products = $qb
-            ->setMaxResults($planLimit)
-            ->getQuery()
-            ->getResult();
-
-        // 🔹 Sync (sync service / messenger)
-        // $this->syncService->syncProducts($products);
+        // 🔹 Perform sync via your service
+        try {
+            $this->syncService->syncProducts($products, $clientId, $key);
+        } catch (\Exception $e) {
+            return new JsonResponse([
+                'error' => $e->getMessage() ?: 'Unknown error during sync.',
+            ], 500);
+        }
 
         return new JsonResponse([
             'success' => true,
