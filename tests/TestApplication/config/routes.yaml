@@ -1,5 +1,5 @@
-acme_sylius_example_admin:
-    resource: "@AcmeSyliusExamplePlugin/config/routes/admin.yaml"
+priceeio_sylius_example_admin:
+    resource: "@PriceeIOSyliusExamplePlugin/config/routes/admin.yaml"
 
-acme_sylius_example_shop:
-    resource: "@AcmeSyliusExamplePlugin/config/routes/shop.yaml"
+priceeio_sylius_example_shop:
+    resource: "@PriceeIOSyliusExamplePlugin/config/routes/shop.yaml"

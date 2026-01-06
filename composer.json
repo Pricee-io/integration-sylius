@@ -1,11 +1,12 @@
 {
-    "name": "sylius/plugin-skeleton",
+    "name": "priceeio/integration-sylius",
     "type": "sylius-plugin",
-    "description": "Acme example plugin for Sylius.",
+    "description": "Sylius integration with Pricee.io",
     "keywords": [
         "sylius",
         "sylius-plugin",
-        "test-appication"
+        "pricee.io",
+        "pricee"
     ],
     "license": "MIT",
     "require": {
@@ -66,12 +67,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Acme\\SyliusExamplePlugin\\": "src/"
+            "PriceeIO\\SyliusExamplePlugin\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Tests\\Acme\\SyliusExamplePlugin\\": ["tests/", "tests/TestApplication/src/"]
+            "Tests\\PriceeIO\\SyliusExamplePlugin\\": ["tests/", "tests/TestApplication/src/"]
         }
     },
     "scripts": {
