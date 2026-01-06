@@ -1,0 +1,6 @@
+sylius:
+    ui:
+        admin:
+            priceeio_sync_plugin:
+                index:
+                    title: "Synchronisation"

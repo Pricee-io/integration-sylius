@@ -1,1 +1,9 @@
-<h1>Pricee.io Sync</h1>
+{% extends '@SyliusAdmin/shared/layout/base.html.twig' %}
+
+{% set title = 'sylius.ui.admin.priceeio_sync_plugin.index.title'|trans %}
+
+{% block title %}{{ 'sylius.ui.admin.priceeio_sync_plugin.index.title'|trans }} | Pricee.io{% endblock %}
+
+{% block body %}
+    {% hook ['sylius_admin.priceeio_sync_plugin.index'] %}
+{% endblock %}
