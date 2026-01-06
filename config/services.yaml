@@ -1,0 +1,15 @@
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        # Allows optimizing the container by removing unused services; this also means
+        # fetching services directly from the container via $container->get() won't work
+        public: false
+
+    PriceeIO\SyncPlugin\:
+        resource: '../src/*'
+        exclude: '../src/{Entity,Kernel.php}'
+
+    PriceeIO\SyncPlugin\Controller\:
+        resource: '../src/Controller'
+        tags: ['controller.service_arguments']
