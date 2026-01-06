@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PriceeIO\SyliusExamplePlugin\DependencyInjection;
+namespace PriceeIO\SyncPlugin\DependencyInjection;
 
 use Sylius\Bundle\CoreBundle\DependencyInjection\PrependDoctrineMigrationsTrait;
 use Sylius\Bundle\ResourceBundle\DependencyInjection\Extension\AbstractResourceExtension;
@@ -11,7 +11,7 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Extension\PrependExtensionInterface;
 use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
 
-final class PriceeIOSyliusExampleExtension extends AbstractResourceExtension implements PrependExtensionInterface
+final class PriceeIOSyncExtension extends AbstractResourceExtension implements PrependExtensionInterface
 {
     use PrependDoctrineMigrationsTrait;
 
@@ -35,7 +35,7 @@ final class PriceeIOSyliusExampleExtension extends AbstractResourceExtension imp
 
     protected function getMigrationsDirectory(): string
     {
-        return '@PriceeIOSyliusExamplePlugin/src/Migrations';
+        return '@PriceeIOSyncPlugin/src/Migrations';
     }
 
     protected function getNamespacesOfMigrationsExecutedBefore(): array

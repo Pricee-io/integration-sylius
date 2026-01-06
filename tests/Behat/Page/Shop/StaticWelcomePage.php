@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tests\PriceeIO\SyliusExamplePlugin\Behat\Page\Shop;
+namespace Tests\PriceeIO\SyncPlugin\Behat\Page\Shop;
 
 use FriendsOfBehat\PageObjectExtension\Page\SymfonyPage;
 
@@ -21,7 +21,7 @@ class StaticWelcomePage extends SymfonyPage implements WelcomePageInterface
      */
     public function getRouteName(): string
     {
-        return 'priceeio_sylius_example_static_welcome';
+        return 'priceeio_sync_static_welcome';
     }
 
     /**

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tests\PriceeIO\SyliusExamplePlugin\Behat\Page\Shop;
+namespace Tests\PriceeIO\SyncPlugin\Behat\Page\Shop;
 
 use FriendsOfBehat\PageObjectExtension\Page\SymfonyPageInterface;
 

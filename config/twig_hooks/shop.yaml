@@ -2,9 +2,9 @@ sylius_twig_hooks:
     hooks:
         'app_shop.greeting.dynamic':
             content:
-                template: '@PriceeIOSyliusExamplePlugin/shop/greeting/dynamic/content.html.twig'
+                template: '@PriceeIOSyncPlugin/shop/greeting/dynamic/content.html.twig'
                 priority: 0
         'app_shop.greeting.static':
             content:
-                template: '@PriceeIOSyliusExamplePlugin/shop/greeting/static/content.html.twig'
+                template: '@PriceeIOSyncPlugin/shop/greeting/static/content.html.twig'
                 priority: 0

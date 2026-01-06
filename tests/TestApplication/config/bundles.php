@@ -1,5 +1,5 @@
 <?php
 
 return [
-    PriceeIO\SyliusExamplePlugin\PriceeIOSyliusExamplePlugin::class => ['all' => true],
+    PriceeIO\SyncPlugin\PriceeIOSyncPlugin::class => ['all' => true],
 ];

@@ -67,12 +67,12 @@
     },
     "autoload": {
         "psr-4": {
-            "PriceeIO\\SyliusExamplePlugin\\": "src/"
+            "PriceeIO\\SyncPlugin\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Tests\\PriceeIO\\SyliusExamplePlugin\\": ["tests/", "tests/TestApplication/src/"]
+            "Tests\\PriceeIO\\SyncPlugin\\": ["tests/", "tests/TestApplication/src/"]
         }
     },
     "scripts": {
