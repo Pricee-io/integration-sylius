@@ -10,19 +10,19 @@ use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 #[AsEventListener(event: 'sylius.menu.admin.main', method: 'addPriceeIOMenuItems')]
 final class PriceeIOMenuListener
 {
-	public function addPriceeIOMenuItems(MenuBuilderEvent $event): void
-	{
-    	$menu = $event->getMenu();
+    public function addPriceeIOMenuItems(MenuBuilderEvent $event): void
+    {
+        $menu = $event->getMenu();
 
-    	$newSubmenu = $menu
-        	->addChild('app_admin_priceeio')
-        	->setLabel('Pricee.io')
-        	->setLabelAttribute('icon', 'tabler:coin-euro')
-    	;
+        $newSubmenu = $menu
+            ->addChild('app_admin_priceeio')
+            ->setLabel('Pricee.io')
+            ->setLabelAttribute('icon', 'tabler:coin-euro')
+        ;
 
-    	$newSubmenu
+        $newSubmenu
             ->addChild('app_admin_priceeio_sync', ['route' => 'app_admin_priceeio_sync'])
             ->setLabel('Synchronisation')
         ;
-	}
+    }
 }

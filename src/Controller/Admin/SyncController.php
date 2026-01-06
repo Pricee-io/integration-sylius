@@ -17,7 +17,7 @@ final class SyncController extends AbstractController
     public function __construct(
         private TaxonRepositoryInterface $taxonRepository,
         private ProductRepositoryInterface $productRepository,
-        private SyncService $syncService
+        private SyncService $syncService,
     ) {
     }
 
@@ -26,7 +26,7 @@ final class SyncController extends AbstractController
     {
         $categories = $this->taxonRepository->findBy(
             ['enabled' => true],
-            ['position' => 'ASC']
+            ['position' => 'ASC'],
         );
 
         return $this->render('@PriceeIOSyncPlugin/admin/sync/index.html.twig', [
@@ -39,7 +39,7 @@ final class SyncController extends AbstractController
     {
         if (!$this->isCsrfTokenValid(
             'priceeio_categories',
-            $request->request->get('_token')
+            $request->request->get('_token'),
         )) {
             return new JsonResponse(['error' => 'Invalid CSRF token'], 400);
         }
