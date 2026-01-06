@@ -1,0 +1,79 @@
+{% set categories = hookable_metadata.context.categories %}
+
+<div class="container-xl">
+    <div class="card p-3 mb-3">
+        <h3 class="card-title mb-3">{{ 'sylius.ui.admin.priceeio_sync_plugin.index.subtitle'|trans }}</h3>
+
+        <form id="priceeio-sync-form">
+            <input type="hidden" name="_token" value="{{ csrf_token('priceeio_categories') }}">
+
+            <div class="mb-3">
+                {% for category in categories %}
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox"
+                            name="categories[]"
+                            value="{{ category.code }}"
+                            id="category-{{ category.code }}">
+                        <label class="form-check-label" for="category-{{ category.code }}">
+                            {{ category.name }}
+                        </label>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                {{ 'sylius.ui.admin.priceeio_sync_plugin.index.sync_button'|trans }}
+            </button>
+        </form>
+
+        <div id="priceeio-sync-loading" class="d-none mt-2 text-muted">
+            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                <span class="visually-hidden">{{ 'sylius.ui.admin.priceeio_sync_plugin.index.loading'|trans }}</span>
+            </div>
+            {{ 'sylius.ui.admin.priceeio_sync_plugin.index.loading'|trans }}
+        </div>
+
+        <div id="priceeio-sync-result" class="mt-2"></div>
+    </div>
+</div>
+
+<script>
+document.getElementById('priceeio-sync-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    const form = e.target;
+    const result = document.getElementById('priceeio-sync-result');
+    const loading = document.getElementById('priceeio-sync-loading');
+
+    // show loading
+    loading.classList.remove('d-none');
+    result.classList.add('d-none');
+
+    fetch('{{ path('app_admin_priceeio_sync_run') }}', {
+        method: 'POST',
+        body: new FormData(form),
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(r => r.json())
+    .then(data => {
+        loading.classList.add('d-none');
+        result.classList.remove('d-none');
+
+        if (data.success) {
+            result.className = 'alert alert-success mt-2';
+            result.innerText = data.synced + ' ' + '{{ "sylius.ui.admin.priceeio_sync_plugin.index.synced_products"|trans }}';
+        } else {
+            result.className = 'alert alert-danger mt-2';
+            result.innerText = '{{ "sylius.ui.admin.priceeio_sync_plugin.index.sync_error"|trans }}';
+        }
+    })
+    .catch(() => {
+        loading.classList.add('d-none');
+        result.classList.remove('d-none');
+        result.className = 'alert alert-danger mt-2';
+        result.innerText = '{{ "sylius.ui.admin.priceeio_sync_plugin.index.sync_error"|trans }}';
+    });
+});
+</script>

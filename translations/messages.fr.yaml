@@ -3,4 +3,9 @@ sylius:
         admin:
             priceeio_sync_plugin:
                 index:
-                    title: "Synchronisation"
+                    title: "Synchronisation | Pricee.io"
+                    subtitle: "Synchroniser les produits par catégories"
+                    sync_button: "Synchroniser les catégories sélectionnées"
+                    loading: "Chargement…"
+                    synced_products: "produits synchronisés avec succès."
+                    sync_error: "Une erreur est survenue lors de la synchronisation."

@@ -18,6 +18,9 @@ sylius_twig_hooks:
         header:
           template: '@SyliusAdmin/shared/crud/common/content/header.html.twig'
           priority: 200
+        form:
+            template: '@PriceeIOSyncPlugin/admin/sync/_form.html.twig'
+            priority: 100
 
       'sylius_admin.priceeio_sync_plugin.index.content.header':
         title_block:
