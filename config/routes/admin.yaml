@@ -1,0 +1,4 @@
+app_admin_priceeio_sync:
+    path: /admin/priceeio/sync
+    methods: [GET]
+    controller: PriceeIO\SyncPlugin\Controller\Admin\SyncController::index

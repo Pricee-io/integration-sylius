@@ -21,9 +21,8 @@ final class PriceeIOMenuListener
     	;
 
     	$newSubmenu
-        	// ->addChild('app_admin_priceeio_sync', ['route' => 'app_admin_priceeio_sync'])
-            ->addChild('app_admin_priceeio_sync')
-        	->setLabel('Synchronisation')
-    	;
+            ->addChild('app_admin_priceeio_sync', ['route' => 'app_admin_priceeio_sync'])
+            ->setLabel('Synchronisation')
+        ;
 	}
 }

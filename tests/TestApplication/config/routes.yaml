@@ -1,5 +1,2 @@
 priceeio_sync_admin:
     resource: "@PriceeIOSyncPlugin/config/routes/admin.yaml"
-
-priceeio_sync_shop:
-    resource: "@PriceeIOSyncPlugin/config/routes/shop.yaml"
