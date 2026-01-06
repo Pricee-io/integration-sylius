@@ -8,7 +8,6 @@
 !/etc/build/.gitignore
 
 /.phpunit.result.cache
-/behat.yml
 /phpunit.xml
 /compose.override.yml
 .phpunit.result.cache
