@@ -20,29 +20,36 @@ final class ApiService
         $this->httpClient = $httpClient;
     }
 
-    public function getBearer(string $clientId, string $key): string
+    public function getBearer(string $clientId, string $apiKey): string
     {
         try {
             $response = $this->httpClient->request('POST', self::BASE_URL . 'login', [
                 'headers' => [
                     'Content-Type' => 'application/json',
+                    'X-CLIENT-ID' => $clientId,
+                    'X-API-KEY' => $apiKey,
                 ],
-                'body' => json_encode([
-                    'client_id' => $clientId,
-                    'key' => $key,
-                ]),
             ]);
 
-            $data = $response->toArray();
-            dd($data);
+            $status = $response->getStatusCode();
 
-            if (!isset($data['access_token'])) {
-                throw new \RuntimeException('API did not return an access token');
+            if (200 !== $status) {
+                throw new \RuntimeException(sprintf(
+                    'Failed to login with API key. Status: %d. Response: %s',
+                    $status,
+                    $response->getContent(false),
+                ));
             }
 
-            return $data['access_token'];
+            $data = $response->toArray(false);
+
+            if (!isset($data['token'])) {
+                throw new \RuntimeException('JWT token not returned from API key login.');
+            }
+
+            return $data['token'];
         } catch (TransportExceptionInterface | ClientExceptionInterface $e) {
-            throw new \RuntimeException('Failed to fetch bearer token: ' . $e->getMessage());
+            throw new \RuntimeException('Failed to fetch bearer token: ' . $e->getMessage(), 0, $e);
         }
     }
 }
