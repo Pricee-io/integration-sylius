@@ -1,5 +1,7 @@
 # Pricee.io | Sylius Integration
 
+![Packagist Version](https://img.shields.io/packagist/v/priceeio/integration-sylius%20)
+
 **Pricee.io Sylius Plugin** allows you to sync your Sylius products to the [Pricee.io](https://pricee.io) platform for price monitoring.
 
 ## Features
