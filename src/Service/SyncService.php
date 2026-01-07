@@ -15,10 +15,34 @@ final class SyncService
     }
 
     public function syncProducts(
+        string $websiteUrl,
         array $products,
         string $clientId,
         string $key,
     ): void {
         $bearer = $this->apiService->getBearer($clientId, $key);
+        $websites = $this->apiService->getWebsites($bearer);
+
+        $normalizedWebsiteUrl = rtrim($websiteUrl, '/');
+        $websiteId = null;
+
+        // Look for existing website
+        foreach ($websites as $w) {
+            if (rtrim($w['url'], '/') === $normalizedWebsiteUrl) {
+                $websiteId = $w['id'];
+
+                break;
+            }
+        }
+
+        // If not found, create it
+        if (!$websiteId) {
+            $website = $this->apiService->createWebsite($bearer, $normalizedWebsiteUrl);
+            $websiteId = $website['id'];
+        }
+
+        foreach ($products as $product) {
+            $this->apiService->createProduct($bearer, $websiteId, $product['url']);
+        }
     }
 }
