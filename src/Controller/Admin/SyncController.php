@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PriceeIO\SyncPlugin\Controller\Admin;
 
+use PriceeIO\SyncPlugin\Helper\CategoryProductCounter;
 use PriceeIO\SyncPlugin\Service\SyncService;
 use Sylius\Component\Core\Repository\ProductRepositoryInterface;
 use Sylius\Component\Taxonomy\Repository\TaxonRepositoryInterface;
@@ -18,6 +19,7 @@ final class SyncController extends AbstractController
         private TaxonRepositoryInterface $taxonRepository,
         private ProductRepositoryInterface $productRepository,
         private SyncService $syncService,
+        private CategoryProductCounter $categoryProductCounter,
     ) {
     }
 
@@ -29,8 +31,17 @@ final class SyncController extends AbstractController
             ['position' => 'ASC'],
         );
 
+        $categoriesWithCount = [];
+        foreach ($categories as $category) {
+            $categoriesWithCount[] = [
+                'code' => $category->getCode(),
+                'name' => $category->getName(),
+                'productCount' => $this->categoryProductCounter->countByTaxonCode($category->getCode()),
+            ];
+        }
+
         return $this->render('@PriceeIOSyncPlugin/admin/sync/index.html.twig', [
-            'categories' => $categories,
+            'categories' => $categoriesWithCount,
         ]);
     }
 

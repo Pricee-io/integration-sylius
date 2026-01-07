@@ -86,7 +86,7 @@ final class ApiService
         try {
             $response = $this->httpClient->request('POST', self::BASE_URL . 'websites', [
                 'headers' => [
-                    'Content-Type' => 'application/json',
+                    'Content-Type' => 'application/ld+json',
                     'Authorization' => 'Bearer ' . $bearer,
                 ],
                 'json' => [
@@ -117,7 +117,7 @@ final class ApiService
         try {
             $response = $this->httpClient->request('POST', self::BASE_URL . 'website_products', [
                 'headers' => [
-                    'Content-Type' => 'application/json',
+                    'Content-Type' => 'application/ld+json',
                     'Authorization' => 'Bearer ' . $bearer,
                 ],
                 'json' => [
