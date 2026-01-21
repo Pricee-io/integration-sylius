@@ -83,7 +83,7 @@ final class SyncController extends AbstractController
         $products = $qb->setMaxResults($limit)->getQuery()->getResult();
 
         // Perform sync via your service
-        $websiteUrl = $request->getSchemeAndHttpHost() . $request->getRequestUri();
+        $websiteUrl = $request->getSchemeAndHttpHost();
 
         try {
             $this->syncService->syncProducts($websiteUrl, $products, $clientId, $key);
