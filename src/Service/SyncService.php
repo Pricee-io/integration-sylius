@@ -55,7 +55,11 @@ final class SyncService
                 'slug' => $product->getTranslation()->getSlug(),
             ], UrlGeneratorInterface::ABSOLUTE_URL);
 
-            $this->apiService->createProduct($bearer, $websiteId, $productUrl);
+            try {
+                $this->apiService->createProduct($bearer, $websiteId, $productUrl);
+            } catch (\Exception $e) {
+                continue; // ignore error for now and go to next product
+            }
             ++$productsCount;
         }
 
