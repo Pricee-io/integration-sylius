@@ -3,11 +3,11 @@ sylius:
         admin:
             priceeio_sync_plugin:
                 index:
-                    title: "Synchronisation | Pricee.io"
+                    title: "Pricee.io → Synchronisation"
                     credentials_missing: "Veuillez configurer votre clé API Pricee.io avec les variables d'environnement."
                     subtitle: "Synchroniser les produits par catégories"
                     categories_title: "Catégories"
-                    sync_button: "Synchroniser les catégories sélectionnées"
+                    sync_button: "Synchroniser les produits"
                     loading: "Chargement…"
                     synced_products: "produits synchronisés avec succès."
                     sync_error: "Une erreur est survenue lors de la synchronisation."
