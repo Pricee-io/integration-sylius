@@ -4,10 +4,8 @@ sylius:
             priceeio_sync_plugin:
                 index:
                     title: "Synchronisation | Pricee.io"
+                    credentials_missing: "Please configure your Pricee.io API key with environment variables."
                     subtitle: "Sync products by category"
-                    api_key_title: "API Key"
-                    client_id: "Client ID"
-                    key: "Secret Key"
                     categories_title: "Categories"
                     sync_button: "Sync selected categories"
                     loading: "Loading…"

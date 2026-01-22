@@ -23,10 +23,8 @@ final class SyncService
     public function syncProducts(
         string $websiteUrl,
         array $products,
-        string $clientId,
-        string $key,
     ): void {
-        $bearer = $this->apiService->getBearer($clientId, $key);
+        $bearer = $this->apiService->getBearer();
         $websites = $this->apiService->getWebsites($bearer);
 
         $normalizedWebsiteUrl = rtrim($websiteUrl, '/');

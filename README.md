@@ -32,12 +32,18 @@ return [
 php bin/console cache:clear
 ```
 
+4. Configure your Pricee.io API key credentials with environment variables:
+
+```bash
+PRICEEIO_CLIENT_ID=your_client_id
+PRICEEIO_API_KEY=your_api_key
+```
+
 ## Usage
 
 1. Go to **Admin → Pricee.io → Synchronisation**.
-2. Enter your **Client ID** and **Secret Key**.
-3. Select product categories you want to sync.
-4. Click **Synchronise** to send products to Pricee.io.
+2. Select product categories you want to sync.
+3. Click **Synchronise** to send products to Pricee.io.
 
 The plugin will automatically:
 

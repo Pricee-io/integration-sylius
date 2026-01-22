@@ -13,3 +13,7 @@ services:
     PriceeIO\SyncPlugin\Controller\:
         resource: '../src/Controller'
         tags: ['controller.service_arguments']
+
+parameters:
+    priceeio.client_id: '%env(PRICEEIO_CLIENT_ID)%'
+    priceeio.api_key: '%env(PRICEEIO_API_KEY)%'

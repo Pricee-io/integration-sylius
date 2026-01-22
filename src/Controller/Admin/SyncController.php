@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PriceeIO\SyncPlugin\Controller\Admin;
 
 use PriceeIO\SyncPlugin\Helper\CategoryProductCounter;
+use PriceeIO\SyncPlugin\Helper\Params;
 use PriceeIO\SyncPlugin\Service\SyncService;
 use Sylius\Component\Core\Repository\ProductRepositoryInterface;
 use Sylius\Component\Taxonomy\Repository\TaxonRepositoryInterface;
@@ -19,6 +20,7 @@ final class SyncController extends AbstractController
         private TaxonRepositoryInterface $taxonRepository,
         private ProductRepositoryInterface $productRepository,
         private SyncService $syncService,
+        private Params $params,
         private CategoryProductCounter $categoryProductCounter,
     ) {
     }
@@ -26,6 +28,13 @@ final class SyncController extends AbstractController
     /** GET: show form */
     public function index(): Response
     {
+        $credentialsSet = true;
+
+        $credentials = $this->params->getCredentials();
+        if (!$credentials || empty($credentials['clientId']) || empty($credentials['apiKey'])) {
+            $credentialsSet = false;
+        }
+
         $categories = $this->taxonRepository->findBy(
             ['enabled' => true],
             ['position' => 'ASC'],
@@ -41,6 +50,7 @@ final class SyncController extends AbstractController
         }
 
         return $this->render('@PriceeIOSyncPlugin/admin/sync/index.html.twig', [
+            'credentialsSet' => $credentialsSet,
             'categories' => $categoriesWithCount,
         ]);
     }
@@ -56,18 +66,10 @@ final class SyncController extends AbstractController
         }
 
         $categoryCodes = $request->request->all('categories');
-        $clientId = trim($request->request->get('clientId', ''));
-        $key = trim($request->request->get('key', ''));
 
         if (empty($categoryCodes)) {
             return new JsonResponse([
                 'error' => 'No categories selected.',
-            ], 400);
-        }
-
-        if (!$clientId || !$key) {
-            return new JsonResponse([
-                'error' => 'Client ID and API Key are required.',
             ], 400);
         }
 
@@ -86,7 +88,7 @@ final class SyncController extends AbstractController
         $websiteUrl = $request->getSchemeAndHttpHost();
 
         try {
-            $this->syncService->syncProducts($websiteUrl, $products, $clientId, $key);
+            $this->syncService->syncProducts($websiteUrl, $products);
         } catch (\Exception $e) {
             return new JsonResponse([
                 'error' => $e->getMessage() ?: 'Unknown error during sync.',

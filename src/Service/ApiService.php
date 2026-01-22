@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PriceeIO\SyncPlugin\Service;
 
+use PriceeIO\SyncPlugin\Helper\Params;
 use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -14,20 +15,26 @@ final class ApiService
 
     private HttpClientInterface $httpClient;
 
+    private Params $params;
+
     public function __construct(
         HttpClientInterface $httpClient,
+        Params $params,
     ) {
         $this->httpClient = $httpClient;
+        $this->params = $params;
     }
 
-    public function getBearer(string $clientId, string $apiKey): string
+    public function getBearer(): string
     {
+        $credentials = $this->params->getCredentials();
+
         try {
             $response = $this->httpClient->request('POST', self::BASE_URL . 'login', [
                 'headers' => [
                     'Content-Type' => 'application/json',
-                    'X-CLIENT-ID' => $clientId,
-                    'X-API-KEY' => $apiKey,
+                    'X-CLIENT-ID' => $credentials['clientId'],
+                    'X-API-KEY' => $credentials['apiKey'],
                 ],
             ]);
 
