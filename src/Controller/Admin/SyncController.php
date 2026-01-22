@@ -74,21 +74,26 @@ final class SyncController extends AbstractController
         }
 
         // Resolve products from selected categories
-        $qb = $this->productRepository->createQueryBuilder('p')
+        $idsQb = $this->productRepository->createQueryBuilder('p')
+            ->select('p.id')
             ->join('p.productTaxons', 'pt')
             ->join('pt.taxon', 't')
             ->andWhere('t.code IN (:codes)')
             ->andWhere('p.enabled = true')
             ->setParameter('codes', $categoryCodes);
+        $productIds = array_column($idsQb->getQuery()->getScalarResult(), 'id');
 
-        $limit = 500;
-        $products = $qb->setMaxResults($limit)->getQuery()->getResult();
+        $query = $this->productRepository->createQueryBuilder('p')
+            ->andWhere('p.id IN (:ids)')
+            ->setParameter('ids', $productIds)
+            ->orderBy('p.id', 'ASC')
+            ->getQuery();
 
         // Perform sync via your service
         $websiteUrl = $request->getSchemeAndHttpHost();
 
         try {
-            $this->syncService->syncProducts($websiteUrl, $products);
+            $productsCount = $this->syncService->syncProducts($websiteUrl, $query);
         } catch (\Exception $e) {
             return new JsonResponse([
                 'error' => $e->getMessage() ?: 'Unknown error during sync.',
@@ -97,7 +102,7 @@ final class SyncController extends AbstractController
 
         return new JsonResponse([
             'success' => true,
-            'synced' => count($products),
+            'synced' => $productsCount,
         ]);
     }
 }

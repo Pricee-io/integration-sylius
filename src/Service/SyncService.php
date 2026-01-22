@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PriceeIO\SyncPlugin\Service;
 
+use Doctrine\ORM\Query;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 final class SyncService
@@ -22,8 +23,8 @@ final class SyncService
 
     public function syncProducts(
         string $websiteUrl,
-        array $products,
-    ): void {
+        Query $query,
+    ): int {
         $bearer = $this->apiService->getBearer();
         $websites = $this->apiService->getWebsites($bearer);
 
@@ -45,12 +46,19 @@ final class SyncService
             $websiteId = $website['@id'];
         }
 
-        foreach ($products as $product) {
+        $productsCount = 0;
+        foreach ($query->toIterable() as $product) {
+            if ($productsCount >= 500) {
+                break;
+            }
             $productUrl = $this->router->generate('sylius_shop_product_show', [
                 'slug' => $product->getTranslation()->getSlug(),
             ], UrlGeneratorInterface::ABSOLUTE_URL);
 
             $this->apiService->createProduct($bearer, $websiteId, $productUrl);
+            ++$productsCount;
         }
+
+        return $productsCount;
     }
 }
