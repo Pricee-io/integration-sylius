@@ -9,6 +9,11 @@
 - Authenticate with Pricee.io using Client ID & Secret Key (API Key)
 - Sync selected product categories from Sylius to Pricee.io
 
+## Prerequisites
+
+- PHP 8.1 or higher
+- Sylius 1.14 or higher
+
 ## Installation
 
 1. Require the plugin via Composer:
