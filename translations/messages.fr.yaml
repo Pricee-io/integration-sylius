@@ -5,7 +5,7 @@ sylius:
                 index:
                     title: "Pricee.io → Synchronisation"
                     credentials_missing: "Veuillez configurer votre clé API Pricee.io avec les variables d'environnement."
-                    subtitle: "Synchroniser les produits par catégories"
+                    subtitle: "Synchroniser les produits par catégorie"
                     categories_title: "Catégories"
                     sync_button: "Synchroniser les produits"
                     loading: "Chargement…"

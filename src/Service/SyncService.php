@@ -13,6 +13,8 @@ final class SyncService
 
     private UrlGeneratorInterface $router;
 
+    private const MAX_PRODUCTS = 500;
+
     public function __construct(
         ApiService $apiService,
         UrlGeneratorInterface $router,
@@ -48,7 +50,7 @@ final class SyncService
 
         $productsCount = 0;
         foreach ($query->toIterable() as $product) {
-            if ($productsCount >= 500) {
+            if ($productsCount >= self::MAX_PRODUCTS) {
                 break;
             }
             $productUrl = $this->router->generate('sylius_shop_product_show', [
@@ -57,7 +59,7 @@ final class SyncService
 
             try {
                 $this->apiService->createProduct($bearer, $websiteId, $productUrl);
-            } catch (\Exception $e) {
+            } catch (\Exception) {
                 continue; // ignore error for now and go to next product
             }
             ++$productsCount;
