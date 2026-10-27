@@ -7,7 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-27
+
 - Add webhook receiver: apply Pricee.io price updates to Sylius channel pricings (HMAC-SHA256 signature over the raw body, timestamp/nonce replay protection, price validation, per-channel currency matching)
+- Handle batch payloads sharing a single nonce and skip entries and channels with unknown currency
 - Add AGENTS.md guidance for AI coding agents
 - Add PHP and Sylius prerequisites to the README
 
