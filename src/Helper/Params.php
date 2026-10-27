@@ -32,4 +32,28 @@ class Params
             ];
         }
     }
+
+    /**
+     * @return array{enabled: bool, secret: string}
+     */
+    public function getWebhookConfig(): array
+    {
+        $enabled = false;
+        $secret = '';
+
+        try {
+            $enabled = (bool) $this->params->get('priceeio.webhook_enabled');
+            $secret = $this->params->get('priceeio.webhook_secret');
+        } catch (\Exception $e) {
+            return [
+                'enabled' => false,
+                'secret' => '',
+            ];
+        }
+
+        return [
+            'enabled' => $enabled,
+            'secret' => is_string($secret) ? $secret : '',
+        ];
+    }
 }

@@ -56,6 +56,32 @@ The plugin will automatically:
 * Sync products from selected categories
 * Return a success message with the number of synced products
 
+## Webhook (automatic price updates)
+
+The plugin exposes a webhook endpoint that receives competitor price updates from Pricee.io and applies them to your channel pricings.
+
+1. Import the webhook route in your application `config/routes.yaml`:
+
+```yaml
+priceeio_sync_webhook:
+    resource: "@PriceeIOSyncPlugin/config/routes/webhook.yaml"
+```
+
+2. Enable the webhook with environment variables:
+
+```bash
+PRICEEIO_WEBHOOK_ENABLED=1
+PRICEEIO_WEBHOOK_SECRET=your_webhook_secret
+```
+
+3. In Pricee.io, configure the webhook URL to:
+
+```
+https://your-shop.example.com/priceeio/webhook
+```
+
+Each request is signed with HMAC-SHA256 over the raw body (`X-Signature` header) using the shared secret, and carries a timestamp and a nonce so stale or replayed payloads are rejected. Received prices are validated before being written; channel pricings are updated for channels whose base currency matches the price currency.
+
 ## Support
 
 For issues, contact [hello@pricee.io](mailto:hello@pricee.io) or open an issue in this repository.

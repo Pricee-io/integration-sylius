@@ -13,6 +13,8 @@
 
         <env name="APP_SECRET" value="''" />
         <env name="APP_ENV" value="test"/>
+        <env name="PRICEEIO_WEBHOOK_ENABLED" value="1"/>
+        <env name="PRICEEIO_WEBHOOK_SECRET" value="test_webhook_secret"/>
     </php>
 
     <testsuites>

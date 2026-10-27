@@ -5,6 +5,9 @@ services:
         # Allows optimizing the container by removing unused services; this also means
         # fetching services directly from the container via $container->get() won't work
         public: false
+        bind:
+            # Cache pool used to store webhook nonces for replay protection
+            $cacheApp: '@cache.app'
 
     PriceeIO\SyncPlugin\:
         resource: '../src/*'
@@ -17,3 +20,5 @@ services:
 parameters:
     priceeio.client_id: '%env(PRICEEIO_CLIENT_ID)%'
     priceeio.api_key: '%env(PRICEEIO_API_KEY)%'
+    priceeio.webhook_enabled: '%env(bool:PRICEEIO_WEBHOOK_ENABLED)%'
+    priceeio.webhook_secret: '%env(PRICEEIO_WEBHOOK_SECRET)%'

@@ -33,6 +33,8 @@ Run lint, phpstan and phpunit before committing.
 
 The plugin has no version constant: releases are git tags (`1.0` … `1.0.4`) picked up by Packagist. Each release must add a `## [x.y.z] - YYYY-MM-DD` entry at the top of `CHANGELOG.md`. Keep `composer.json` constraints (`php`, `sylius/sylius`) in sync with the README prerequisites.
 
-## Known gap
+## Webhook contract
 
-Unlike the WooCommerce and PrestaShop integrations, this plugin has **no webhook receiver**: price updates pushed by the app (`../app/src/Service/WebhookService.php`, HMAC-SHA256 over the raw body via `X-Signature`, entries carrying `timestamp`/`nonce` for replay protection) cannot be applied to Sylius yet. Any receiver added here must validate signature, timestamp freshness (±5 min) and nonce uniqueness, resolve products by URL slug, and update `ChannelPricing` per channel/currency.
+The price-update webhook is received by `src/Controller/WebhookController.php` (route `POST /priceeio/webhook`, `config/routes/webhook.yaml`). The payload is a JSON array of entries signed with HMAC-SHA256 over the **raw request body** using the webhook secret (`X-Signature` header). Each entry carries `url`, `bestPriceAmount`, `bestPriceCurrency`, `timestamp` and `nonce`; the controller rejects entries with a missing/stale timestamp (> `WebhookController::MAX_AGE`) or an already-used nonce (stored in the `cache.app` pool for replay protection). Prices are applied by `src/Service/WebhookPriceUpdater.php` to `ChannelPricing` (minor units) for channels whose base currency matches, resolving products by URL slug.
+
+Any change to this format is a cross-repo contract: the sender lives in `../app/src/Service/WebhookService.php` and the WooCommerce/PrestaShop integrations validate the same signature — keep changes backward compatible or coordinate all of them.

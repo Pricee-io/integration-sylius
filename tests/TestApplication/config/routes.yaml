@@ -1,2 +1,5 @@
 priceeio_sync_admin:
     resource: "@PriceeIOSyncPlugin/config/routes/admin.yaml"
+
+priceeio_sync_webhook:
+    resource: "@PriceeIOSyncPlugin/config/routes/webhook.yaml"

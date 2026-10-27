@@ -1,0 +1,4 @@
+priceeio_webhook:
+    path: /priceeio/webhook
+    methods: [POST]
+    controller: PriceeIO\SyncPlugin\Controller\WebhookController
