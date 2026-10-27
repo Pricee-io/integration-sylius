@@ -31,7 +31,7 @@ Run lint, phpstan and phpunit before committing.
 
 ## Versioning
 
-The plugin has no version constant: releases are git tags (`1.0` … `1.0.4`) picked up by Packagist. Keep `composer.json` constraints (`php`, `sylius/sylius`) in sync with the README prerequisites.
+The plugin has no version constant: releases are git tags (`1.0` … `1.0.4`) picked up by Packagist. Each release must add a `## [x.y.z] - YYYY-MM-DD` entry at the top of `CHANGELOG.md`. Keep `composer.json` constraints (`php`, `sylius/sylius`) in sync with the README prerequisites.
 
 ## Known gap
 
