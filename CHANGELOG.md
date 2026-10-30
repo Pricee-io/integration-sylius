@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Paginate the Pricee websites API during sync so the shop website is found on accounts with many websites instead of creating a duplicate
+
 ## [1.2.1] - 2026-10-30
 
 - Fix PHPStan level max errors: typed taxon repository, EntityManager-based queries in the sync controller, string validation of credentials
