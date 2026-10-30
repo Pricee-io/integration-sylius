@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-30
+
+- Fix PHPStan level max errors: typed taxon repository, EntityManager-based queries in the sync controller, string validation of credentials
+- Simplify CI: fast lint/PHPStan/unit-test workflow plus a reduced Sylius compatibility matrix (2.1/2.2 x Symfony 6.4/7.4), Dependabot config aligned with the other integrations
+
 ## [1.2.0] - 2026-10-30
 
 - Update product URLs on Pricee during sync when they changed and adopt products synced before external IDs existed, without creating duplicates
