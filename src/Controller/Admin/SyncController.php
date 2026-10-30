@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace PriceeIO\SyncPlugin\Controller\Admin;
 
+use Doctrine\ORM\EntityManagerInterface;
 use PriceeIO\SyncPlugin\Helper\CategoryProductCounter;
 use PriceeIO\SyncPlugin\Helper\Params;
 use PriceeIO\SyncPlugin\Service\SyncService;
-use Sylius\Component\Core\Repository\ProductRepositoryInterface;
+use Sylius\Component\Taxonomy\Model\TaxonInterface;
 use Sylius\Component\Taxonomy\Repository\TaxonRepositoryInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -16,9 +17,12 @@ use Symfony\Component\HttpFoundation\Response;
 
 final class SyncController extends AbstractController
 {
+    /**
+     * @param TaxonRepositoryInterface<TaxonInterface> $taxonRepository
+     */
     public function __construct(
         private TaxonRepositoryInterface $taxonRepository,
-        private ProductRepositoryInterface $productRepository,
+        private EntityManagerInterface $entityManager,
         private SyncService $syncService,
         private Params $params,
         private CategoryProductCounter $categoryProductCounter,
@@ -31,7 +35,7 @@ final class SyncController extends AbstractController
         $credentialsSet = true;
 
         $credentials = $this->params->getCredentials();
-        if (!$credentials || empty($credentials['clientId']) || empty($credentials['apiKey'])) {
+        if (empty($credentials['clientId']) || empty($credentials['apiKey'])) {
             $credentialsSet = false;
         }
 
@@ -45,7 +49,7 @@ final class SyncController extends AbstractController
             $categoriesWithCount[] = [
                 'code' => $category->getCode(),
                 'name' => $category->getName(),
-                'productCount' => $this->categoryProductCounter->countByTaxonCode($category->getCode()),
+                'productCount' => $this->categoryProductCounter->countByTaxonCode((string) $category->getCode()),
             ];
         }
 
@@ -60,7 +64,7 @@ final class SyncController extends AbstractController
     {
         if (!$this->isCsrfTokenValid(
             'priceeio_categories',
-            $request->request->get('_token'),
+            (string) $request->request->get('_token'),
         )) {
             return new JsonResponse(['error' => 'Invalid CSRF token'], 400);
         }
@@ -74,8 +78,9 @@ final class SyncController extends AbstractController
         }
 
         // Resolve products from selected categories
-        $idsQb = $this->productRepository->createQueryBuilder('p')
+        $idsQb = $this->entityManager->createQueryBuilder()
             ->select('p.id')
+            ->from('Sylius\\Component\\Core\\Model\\Product', 'p')
             ->join('p.productTaxons', 'pt')
             ->join('pt.taxon', 't')
             ->andWhere('t.code IN (:codes)')
@@ -83,7 +88,9 @@ final class SyncController extends AbstractController
             ->setParameter('codes', $categoryCodes);
         $productIds = array_column($idsQb->getQuery()->getScalarResult(), 'id');
 
-        $query = $this->productRepository->createQueryBuilder('p')
+        $query = $this->entityManager->createQueryBuilder()
+            ->select('p')
+            ->from('Sylius\\Component\\Core\\Model\\Product', 'p')
             ->andWhere('p.id IN (:ids)')
             ->setParameter('ids', $productIds)
             ->orderBy('p.id', 'ASC')

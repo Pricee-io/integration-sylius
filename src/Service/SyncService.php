@@ -6,6 +6,7 @@ namespace PriceeIO\SyncPlugin\Service;
 
 use Doctrine\ORM\Query;
 use Psr\Log\LoggerInterface;
+use Sylius\Component\Core\Model\ProductInterface;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 final class SyncService
@@ -54,6 +55,7 @@ final class SyncService
         }
 
         $productsCount = 0;
+        /** @var ProductInterface $product */
         foreach ($query->toIterable() as $product) {
             if ($productsCount >= self::MAX_PRODUCTS) {
                 break;

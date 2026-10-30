@@ -21,9 +21,12 @@ class Params
     public function getCredentials(): array
     {
         try {
+            $clientId = $this->params->get('priceeio.client_id');
+            $apiKey = $this->params->get('priceeio.api_key');
+
             return [
-                'clientId' => $this->params->get('priceeio.client_id'),
-                'apiKey' => $this->params->get('priceeio.api_key'),
+                'clientId' => is_string($clientId) ? $clientId : '',
+                'apiKey' => is_string($apiKey) ? $apiKey : '',
             ];
         } catch (\Exception $e) {
             return [

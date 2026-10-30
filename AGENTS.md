@@ -21,7 +21,7 @@ Tooling runs through Docker Compose (see `Makefile`):
 - `make lint` — EasyCodingStandard (`ecs check src --fix`)
 - `make phpunit` — test suite (requires the test app: `composer test-app-init` then `composer database-reset`)
 
-Static analysis: `vendor/bin/phpstan` (config in `phpstan.neon`, level max). CI runs the full build against a Sylius matrix (`.github/workflows/build.yaml`).
+Static analysis: `vendor/bin/phpstan` (config in `phpstan.neon`, level max). CI runs a fast check (lint, unit tests) on every PR and push to main (`.github/workflows/ci.yml`), plus the full build against a Sylius matrix (`.github/workflows/sylius-compat.yml`).
 
 Run lint, phpstan and phpunit before committing.
 
