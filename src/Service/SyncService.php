@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PriceeIO\SyncPlugin\Service;
 
 use Doctrine\ORM\Query;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 final class SyncService
@@ -13,14 +14,18 @@ final class SyncService
 
     private UrlGeneratorInterface $router;
 
+    private LoggerInterface $logger;
+
     private const MAX_PRODUCTS = 500;
 
     public function __construct(
         ApiService $apiService,
         UrlGeneratorInterface $router,
+        LoggerInterface $logger,
     ) {
         $this->apiService = $apiService;
         $this->router = $router;
+        $this->logger = $logger;
     }
 
     public function syncProducts(
@@ -58,9 +63,16 @@ final class SyncService
             ], UrlGeneratorInterface::ABSOLUTE_URL);
 
             try {
-                $this->apiService->createProduct($bearer, $websiteId, $productUrl);
-            } catch (\Exception) {
-                continue; // ignore error for now and go to next product
+                $this->apiService->createOrUpdateProduct(
+                    $bearer,
+                    $websiteId,
+                    $productUrl,
+                    (string) $product->getId(),
+                );
+            } catch (\Exception $e) {
+                $this->logger->error('Pricee sync: failed to sync product ID ' . $product->getId() . ': ' . $e->getMessage());
+
+                continue; // go to next product
             }
             ++$productsCount;
         }
