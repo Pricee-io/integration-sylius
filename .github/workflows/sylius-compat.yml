@@ -18,12 +18,10 @@ jobs:
       matrix:
         php: ["8.3"]
         symfony: ["^6.4", "^7.4"]
-        sylius: ["~2.0.0", "~2.1.0", "~2.2.0"]
+        # 2.0.x is outside Sylius security support: every release is blocked by
+        # Composer's advisory policy, so it cannot be installed in CI anymore.
+        sylius: ["~2.1.0", "~2.2.0"]
         database: ["mysql:8.4"]
-
-        exclude:
-          - sylius: "~2.0.0"
-            symfony: "^7.4"
 
     env:
       APP_ENV: test
