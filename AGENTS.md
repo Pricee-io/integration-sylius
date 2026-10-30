@@ -33,6 +33,11 @@ Run lint, phpstan and phpunit before committing.
 
 The plugin has no version constant: releases are git tags (`1.0` … `1.0.4`) picked up by Packagist. Each release must add a `## [x.y.z] - YYYY-MM-DD` entry at the top of `CHANGELOG.md`. Keep `composer.json` constraints (`php`, `sylius/sylius`) in sync with the README prerequisites.
 
+Changelog rules (this is a Sylius plugin, so the changelog is read by merchants, not developers):
+
+- Only user-facing changes: what the plugin user sees or experiences in the admin or the storefront. Skip CI, tooling, Dependabot, static analysis and internal refactors.
+- One short line per change, no implementation details (no function names, no file paths, no "fix X by doing Y" narration).
+
 ## Webhook contract
 
 The price-update webhook is received by `src/Controller/WebhookController.php` (route `POST /priceeio/webhook`, `config/routes/webhook.yaml`). The payload is a JSON array of entries signed with HMAC-SHA256 over the **raw request body** using the webhook secret (`X-Signature` header). Each entry carries `url`, `extId` (optional: the shop's internal product ID, null for products synced before external IDs existed), `bestPriceAmount`, `bestPriceCurrency`, `timestamp` and `nonce`; the controller rejects entries with a missing/stale timestamp (> `WebhookController::MAX_AGE`) or an already-used nonce (stored in the `cache.app` pool for replay protection). Prices are applied by `src/Service/WebhookPriceUpdater.php` to `ChannelPricing` (minor units) for channels whose base currency matches, resolving products by URL slug.
