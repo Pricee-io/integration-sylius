@@ -37,7 +37,7 @@ return [
 php bin/console cache:clear
 ```
 
-4. Configure your Pricee.io API key credentials with environment variables:
+4. Configure your Pricee.io API key credentials with environment variables. Create the API key from the **Integrations** page of this shop's website on Pricee.io: each key is tied to one website.
 
 ```bash
 PRICEEIO_CLIENT_ID=your_client_id
@@ -52,7 +52,7 @@ PRICEEIO_API_KEY=your_api_key
 
 The plugin will automatically:
 
-* Fetch or create the website in Pricee.io
+* Sync to the Pricee.io website the API key is tied to (the sync stops with an error if it is not this shop's website)
 * Sync products from selected categories
 * Return a success message with the number of synced products
 

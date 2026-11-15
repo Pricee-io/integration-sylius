@@ -29,7 +29,13 @@ final class ApiService
         $this->params = $params;
     }
 
-    public function getBearer(): string
+    /**
+     * Log in with the configured API key. Returns the JWT and, for a key
+     * scoped to a website, the IRI of that website (null for an account-wide key).
+     *
+     * @return array{token: string, website: ?string}
+     */
+    public function login(): array
     {
         $credentials = $this->params->getCredentials();
 
@@ -58,7 +64,10 @@ final class ApiService
                 throw new \RuntimeException('JWT token not returned from API key login.');
             }
 
-            return $data['token'];
+            return [
+                'token' => (string) $data['token'],
+                'website' => isset($data['website']) && is_string($data['website']) ? $data['website'] : null,
+            ];
         } catch (TransportExceptionInterface | ClientExceptionInterface $e) {
             throw new \RuntimeException('Failed to fetch bearer token: ' . $e->getMessage(), 0, $e);
         }
@@ -98,37 +107,6 @@ final class ApiService
             return $websites;
         } catch (TransportExceptionInterface | ClientExceptionInterface $e) {
             throw new \RuntimeException('Failed to fetch websites: ' . $e->getMessage(), 0, $e);
-        }
-    }
-
-    public function createWebsite(string $bearer, string $url): array
-    {
-        try {
-            $response = $this->httpClient->request('POST', self::BASE_URL . 'websites', [
-                'headers' => [
-                    'Content-Type' => 'application/ld+json',
-                    'Authorization' => 'Bearer ' . $bearer,
-                ],
-                'json' => [
-                    'url' => $url,
-                ],
-            ]);
-
-            $status = $response->getStatusCode();
-
-            if (201 !== $status) {
-                throw new \RuntimeException(sprintf(
-                    'Failed to create website. Status: %d. Response: %s',
-                    $status,
-                    $response->getContent(false),
-                ));
-            }
-
-            $data = $response->toArray(false);
-
-            return $data;
-        } catch (TransportExceptionInterface | ClientExceptionInterface $e) {
-            throw new \RuntimeException('Failed to create website: ' . $e->getMessage(), 0, $e);
         }
     }
 

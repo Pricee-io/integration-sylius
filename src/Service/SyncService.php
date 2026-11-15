@@ -31,26 +31,9 @@ final class SyncService
         string $websiteUrl,
         Query $query,
     ): int {
-        $bearer = $this->apiService->getBearer();
-        $websites = $this->apiService->getWebsites($bearer);
-
-        $normalizedWebsiteUrl = rtrim($websiteUrl, '/');
-        $websiteId = null;
-
-        // Look for existing website
-        foreach ($websites as $w) {
-            if (rtrim($w['url'], '/') === $normalizedWebsiteUrl) {
-                $websiteId = $w['@id'];
-
-                break;
-            }
-        }
-
-        // If not found, create it
-        if (!$websiteId) {
-            $website = $this->apiService->createWebsite($bearer, $normalizedWebsiteUrl);
-            $websiteId = $website['@id'];
-        }
+        $login = $this->apiService->login();
+        $bearer = $login['token'];
+        $websiteId = $this->resolveWebsiteId($login, $websiteUrl);
 
         $productsCount = 0;
         /** @var ProductInterface $product */
@@ -75,5 +58,42 @@ final class SyncService
         }
 
         return $productsCount;
+    }
+
+    /**
+     * The Pricee website to sync to: the one the API key is scoped to, which
+     * must be this shop's website.
+     *
+     * @param array{token: string, website: ?string} $login
+     */
+    public function resolveWebsiteId(array $login, string $websiteUrl): string
+    {
+        if (null === $login['website']) {
+            throw new \RuntimeException('This API key is not tied to a website. Create an API key from the Integrations page of this shop\'s website on Pricee.');
+        }
+
+        $normalizedWebsiteUrl = rtrim($websiteUrl, '/');
+        foreach ($this->apiService->getWebsites($login['token']) as $w) {
+            if ($w['@id'] === $login['website'] && $this->websiteHost((string) $w['url']) !== $this->websiteHost($normalizedWebsiteUrl)) {
+                throw new \RuntimeException(sprintf(
+                    'This API key belongs to the Pricee website %s, not to this shop (%s). Use an API key created from the Integrations page of this shop\'s website on Pricee.',
+                    $w['url'],
+                    $normalizedWebsiteUrl,
+                ));
+            }
+        }
+
+        return $login['website'];
+    }
+
+    /**
+     * Host of a URL, compared like Pricee checks that a product belongs to a
+     * website: case-insensitive, without "www.".
+     */
+    private function websiteHost(string $url): string
+    {
+        $host = strtolower((string) parse_url($url, \PHP_URL_HOST));
+
+        return (string) preg_replace('/^www\./', '', $host);
     }
 }
