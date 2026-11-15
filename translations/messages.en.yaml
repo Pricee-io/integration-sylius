@@ -11,3 +11,5 @@ sylius:
                     loading: "Loading…"
                     synced_products: "products synced successfully."
                     sync_error: "An error occurred during sync."
+                    sync_progress: "Sync in progress:"
+                    failed_products: "in error (see the logs)."

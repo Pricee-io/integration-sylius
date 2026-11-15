@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+- Follow the updated format of Pricee's webhook calls, required for automatic price updates
+- Never overwrite a price you changed yourself: a webhook update is skipped when the product's price changed since Pricee last read it
+- Only update the price of products with a single variant, on the channel the product page belongs to, instead of giving every variant and every channel in that currency the same price
+- Skip webhook price updates for disabled products, prices with a catalog promotion or a shown original price, and prices below the channel's minimum price
+- Match webhook updates to the product synced with its ID instead of its URL, and skip a URL shared by several products
+- Sync large catalogs without timeouts: products are sent in batches with a progress indicator and the number of products in error, and the 500-product limit is removed
+
 ## [1.2.2] - 2026-10-30
 
 - Paginate the Pricee websites API during sync so the shop website is found on accounts with many websites instead of creating a duplicate

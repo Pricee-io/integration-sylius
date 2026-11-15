@@ -73,7 +73,7 @@ final class WebhookControllerTest extends TestCase
 
     public function testReturns401WhenTimestampOrNonceIsMissing(): void
     {
-        $entries = [['url' => 'https://shop.example.com/products/t-shirt', 'bestPriceAmount' => 9.99]];
+        $entries = [['url' => 'https://shop.example.com/products/t-shirt', 'priceAmount' => 9.99]];
 
         $response = $this->call($entries);
 
@@ -108,7 +108,11 @@ final class WebhookControllerTest extends TestCase
         $response = $this->call($entries);
 
         $this->assertSame(200, $response->getStatusCode());
-        $this->assertSame(['success' => true, 'updated' => 0], json_decode($response->getContent(), true));
+        // Entries without a currency: counted by outcome, nothing updated
+        $this->assertSame(
+            ['success' => true, 'updated' => 0, 'outcomes' => ['skipped_invalid_entry' => 2]],
+            json_decode((string) $response->getContent(), true),
+        );
     }
 
     /**
@@ -138,13 +142,13 @@ final class WebhookControllerTest extends TestCase
     }
 
     /**
-     * @return array{url: string, bestPriceAmount: float, timestamp: int, nonce: string}
+     * @return array{url: string, priceAmount: float, timestamp: int, nonce: string}
      */
     private function entry(?int $timestamp = null, string $nonce = 'nonce'): array
     {
         return [
             'url' => 'https://shop.example.com/products/t-shirt',
-            'bestPriceAmount' => 9.99,
+            'priceAmount' => 9.99,
             'timestamp' => $timestamp ?? time(),
             'nonce' => $nonce,
         ];

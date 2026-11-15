@@ -48,42 +48,71 @@
 </div>
 
 <script>
+// The sync runs in batches, one request each, so a large selection never
+// hits a timeout: each answer gives the cursor for the next batch.
 document.getElementById('priceeio-sync-form').addEventListener('submit', function (e) {
     e.preventDefault();
 
     const form = e.target;
+    const button = form.querySelector('button[type="submit"]');
     const result = document.getElementById('priceeio-sync-result');
     const loading = document.getElementById('priceeio-sync-loading');
+    let synced = 0;
+    let failed = 0;
 
-    // show loading
+    const show = (type, message) => {
+        result.className = 'alert alert-' + type + ' mt-2';
+        result.innerText = message;
+    };
+    const finish = () => {
+        loading.classList.add('d-none');
+        button.disabled = false;
+    };
+    const syncedMessage = () => synced + ' ' + '{{ "sylius.ui.admin.priceeio_sync_plugin.index.synced_products"|trans|e('js') }}'
+        + (failed > 0 ? ' ' + failed + ' ' + '{{ "sylius.ui.admin.priceeio_sync_plugin.index.failed_products"|trans|e('js') }}' : '');
+    const fail = () => {
+        finish();
+        show('danger', '{{ "sylius.ui.admin.priceeio_sync_plugin.index.sync_error"|trans|e('js') }}' + (synced + failed > 0 ? ' (' + syncedMessage() + ')' : ''));
+    };
+
+    button.disabled = true;
     loading.classList.remove('d-none');
-    result.classList.add('d-none');
+    result.className = 'd-none';
 
-    fetch('{{ path('app_admin_priceeio_sync_run') }}', {
-        method: 'POST',
-        body: new FormData(form),
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-    .then(r => r.json())
-    .then(data => {
-        loading.classList.add('d-none');
-        result.classList.remove('d-none');
+    const syncBatch = (afterId) => {
+        const body = new FormData(form);
+        body.append('after_id', afterId);
 
-        if (data.success) {
-            result.className = 'alert alert-success mt-2';
-            result.innerText = data.synced + ' ' + '{{ "sylius.ui.admin.priceeio_sync_plugin.index.synced_products"|trans }}';
-        } else {
-            result.className = 'alert alert-danger mt-2';
-            result.innerText = '{{ "sylius.ui.admin.priceeio_sync_plugin.index.sync_error"|trans }}';
-        }
-    })
-    .catch(() => {
-        loading.classList.add('d-none');
-        result.classList.remove('d-none');
-        result.className = 'alert alert-danger mt-2';
-        result.innerText = '{{ "sylius.ui.admin.priceeio_sync_plugin.index.sync_error"|trans }}';
-    });
+        fetch('{{ path('app_admin_priceeio_sync_run') }}', {
+            method: 'POST',
+            body: body,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                fail();
+
+                return;
+            }
+
+            synced += data.synced;
+            failed += data.failed;
+            if (data.done) {
+                finish();
+                show(failed > 0 ? 'warning' : 'success', syncedMessage());
+
+                return;
+            }
+
+            show('info', '{{ "sylius.ui.admin.priceeio_sync_plugin.index.sync_progress"|trans|e('js') }} ' + (synced + failed) + ' / ' + data.total);
+            syncBatch(data.last_id);
+        })
+        .catch(fail);
+    };
+
+    syncBatch(0);
 });
 </script>

@@ -58,7 +58,7 @@ The plugin will automatically:
 
 ## Webhook (automatic price updates)
 
-The plugin exposes a webhook endpoint that receives competitor price updates from Pricee.io and applies them to your channel pricings.
+The plugin exposes a webhook endpoint that receives the prices Pricee.io computes for your products and applies them to their channel pricing. A price is only written for a product with a single variant, on the channel of its page, when it has no catalog promotion, stays above the channel's minimum price, and was not changed in the shop since Pricee.io last read it.
 
 1. Import the webhook route in your application `config/routes.yaml`:
 

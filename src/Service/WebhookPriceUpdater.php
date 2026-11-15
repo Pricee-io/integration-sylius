@@ -8,16 +8,41 @@ use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Sylius\Component\Channel\Repository\ChannelRepositoryInterface;
 use Sylius\Component\Core\Model\ChannelInterface;
+use Sylius\Component\Core\Model\ChannelPricingInterface;
 use Sylius\Component\Core\Model\ProductInterface;
 use Sylius\Component\Core\Model\ProductVariantInterface as CoreProductVariantInterface;
 use Sylius\Component\Product\Model\ProductTranslationInterface;
 use Sylius\Component\Product\Repository\ProductTranslationRepositoryInterface;
 
 /**
- * Applies price updates received from the Pricee.io webhook to Sylius channel pricings.
+ * Applies a price update received from the Pricee.io webhook to the channel
+ * pricing of the product's channel. Writing a price is the critical action:
+ * in any doubtful case the entry is skipped and logged, never guessed.
  */
 final class WebhookPriceUpdater
 {
+    public const UPDATED_PRICE = 'updated_price';
+
+    public const UNCHANGED = 'unchanged';
+
+    public const SKIPPED_INVALID_ENTRY = 'skipped_invalid_entry';
+
+    public const SKIPPED_NO_READ_PRICE = 'skipped_no_read_price';
+
+    public const SKIPPED_UNKNOWN_PRODUCT = 'skipped_unknown_product';
+
+    public const SKIPPED_DISABLED = 'skipped_disabled';
+
+    public const SKIPPED_UNSUPPORTED_TYPE = 'skipped_unsupported_type';
+
+    public const SKIPPED_CHANNEL = 'skipped_channel';
+
+    public const SKIPPED_PROMOTION = 'skipped_promotion';
+
+    public const SKIPPED_PRICE_CHANGED_IN_SHOP = 'skipped_price_changed_in_shop';
+
+    public const SKIPPED_BELOW_MINIMUM = 'skipped_below_minimum';
+
     /**
      * @param ProductTranslationRepositoryInterface<ProductTranslationInterface> $productTranslationRepository
      * @param ChannelRepositoryInterface<ChannelInterface> $channelRepository
@@ -33,92 +58,162 @@ final class WebhookPriceUpdater
     /**
      * @param array<string, mixed> $entry
      *
-     * @return int the number of channel pricings updated
+     * @return string the outcome of the entry (one of the constants)
      */
-    public function updateFromEntry(array $entry): int
+    public function updateFromEntry(array $entry): string
     {
         $url = $entry['url'] ?? null;
-        $amount = $entry['bestPriceAmount'] ?? null;
+        $amount = $entry['priceAmount'] ?? null;
+        $currency = isset($entry['priceCurrency']) && is_string($entry['priceCurrency'])
+            ? strtoupper($entry['priceCurrency'])
+            : '';
 
-        if (!is_string($url) || '' === $url || !is_numeric($amount) || (float) $amount <= 0) {
-            $this->logger->warning('Pricee webhook: invalid entry skipped.', ['entry' => $entry]);
+        if (!is_string($url) || '' === $url || !is_numeric($amount) || (float) $amount <= 0 || '' === $currency) {
+            return $this->skip(self::SKIPPED_INVALID_ENTRY, 'invalid url, price or currency', $entry);
+        }
 
-            return 0;
+        // Pricee computes the new price from the price it last read on the
+        // page: when the merchant changed it since, their change wins
+        $readPrice = $entry['currentPriceAmount'] ?? null;
+        if (!is_numeric($readPrice)) {
+            return $this->skip(self::SKIPPED_NO_READ_PRICE, 'no current price sent to compare with the shop price', $entry);
+        }
+
+        $product = $this->resolveProduct($entry['extId'] ?? null, $url);
+        if (null === $product) {
+            return $this->skip(self::SKIPPED_UNKNOWN_PRODUCT, 'no single product matches the entry', $entry);
+        }
+
+        if (!$product->isEnabled()) {
+            return $this->skip(self::SKIPPED_DISABLED, 'product disabled', $entry);
+        }
+
+        // Only products with one variant: the variants of a product can have
+        // their own prices, and Pricee read only the one shown on the page
+        $variants = array_values(array_filter(
+            $product->getEnabledVariants()->toArray(),
+            static fn (mixed $variant): bool => $variant instanceof CoreProductVariantInterface,
+        ));
+        if (1 !== count($variants)) {
+            return $this->skip(self::SKIPPED_UNSUPPORTED_TYPE, 'product with several variants', $entry);
+        }
+
+        $channel = $this->resolveChannel($product, $currency, $url);
+        if (null === $channel) {
+            return $this->skip(self::SKIPPED_CHANNEL, 'no single channel of the product matches the currency and URL', $entry);
+        }
+
+        /** @var CoreProductVariantInterface $variant */
+        $variant = $variants[0];
+        $channelPricing = $variant->getChannelPricingForChannel($channel);
+        $currentPrice = $channelPricing?->getPrice();
+        if (!$channelPricing instanceof ChannelPricingInterface || null === $currentPrice) {
+            return $this->skip(self::SKIPPED_CHANNEL, 'no price on the channel', $entry);
+        }
+
+        // A catalog promotion recomputes the price from the original one, and
+        // a shown original price is a discount: never write over either
+        $originalPrice = $channelPricing->getOriginalPrice();
+        if (!$channelPricing->getAppliedPromotions()->isEmpty() || (null !== $originalPrice && $originalPrice > $currentPrice)) {
+            return $this->skip(self::SKIPPED_PROMOTION, 'has a promotion or a shown original price', $entry);
         }
 
         // Sylius stores prices as integers in minor units
         $price = (int) round((float) $amount * 100);
+        if ($currentPrice !== (int) round((float) $readPrice * 100)) {
+            return $this->skip(self::SKIPPED_PRICE_CHANGED_IN_SHOP, sprintf('the shop price %d is no longer the one Pricee read', $currentPrice), $entry);
+        }
 
-        $currency = isset($entry['bestPriceCurrency']) && is_string($entry['bestPriceCurrency'])
-            ? strtoupper($entry['bestPriceCurrency'])
-            : null;
+        $minimumPrice = $channelPricing->getMinimumPrice();
+        if ($minimumPrice > 0 && $price < $minimumPrice) {
+            return $this->skip(self::SKIPPED_BELOW_MINIMUM, sprintf('new price %d is below the minimum price %d', $price, $minimumPrice), $entry);
+        }
 
-        if (null === $currency || '' === $currency) {
-            $this->logger->warning('Pricee webhook: entry without currency skipped.', ['url' => $url]);
+        if ($price === $currentPrice) {
+            return self::UNCHANGED;
+        }
 
-            return 0;
+        $channelPricing->setPrice($price);
+        $this->entityManager->flush();
+
+        $this->logger->info(sprintf(
+            'Pricee webhook: price updated for product "%s" on channel "%s" | Old: %d -> New: %d.',
+            (string) $product->getCode(),
+            (string) $channel->getCode(),
+            $currentPrice,
+            $price,
+        ));
+
+        return self::UPDATED_PRICE;
+    }
+
+    /**
+     * The product of the entry: by its extId (the Sylius product ID sent at
+     * sync) when present, never falling back to the URL for a stale one, else
+     * by the slug of its URL when exactly one product has it.
+     */
+    private function resolveProduct(mixed $extId, string $url): ?ProductInterface
+    {
+        if (null !== $extId && '' !== $extId) {
+            $product = is_numeric($extId) ? $this->entityManager->find(ProductInterface::class, (int) $extId) : null;
+
+            return $product instanceof ProductInterface ? $product : null;
         }
 
         $slug = $this->extractSlug($url);
         if ('' === $slug) {
-            $this->logger->warning('Pricee webhook: could not extract product slug from URL.', ['url' => $url]);
-
-            return 0;
+            return null;
         }
 
+        $products = [];
         /** @var array<ProductTranslationInterface> $translations */
         $translations = $this->productTranslationRepository->findBy(['slug' => $slug]);
-
-        $updated = 0;
-        $channels = array_filter(
-            $this->channelRepository->findAll(),
-            static fn (mixed $channel): bool => $channel instanceof ChannelInterface,
-        );
-        $seenProductCodes = [];
-
         foreach ($translations as $translation) {
             $product = $translation->getTranslatable();
-            if (!$product instanceof ProductInterface || isset($seenProductCodes[$product->getCode()])) {
-                continue;
-            }
-
-            /** @psalm-suppress PossiblyNullArrayOffset */
-            $seenProductCodes[$product->getCode()] = true;
-
-            foreach ($product->getEnabledVariants() as $variant) {
-                if (!$variant instanceof CoreProductVariantInterface) {
-                    continue;
-                }
-
-                foreach ($channels as $channel) {
-                    $channelCurrency = $channel->getBaseCurrency()?->getCode();
-                    if ($channelCurrency !== $currency) {
-                        continue;
-                    }
-
-                    $channelPricing = $variant->getChannelPricingForChannel($channel);
-                    if (null === $channelPricing) {
-                        continue;
-                    }
-
-                    $channelPricing->setPrice($price);
-                    ++$updated;
-
-                    $this->logger->info(sprintf(
-                        'Pricee webhook: price updated for product "%s" on channel "%s" | New price: %d.',
-                        (string) $product->getCode(),
-                        (string) $channel->getCode(),
-                        $price,
-                    ));
-                }
+            if ($product instanceof ProductInterface) {
+                $products[spl_object_id($product)] = $product;
             }
         }
 
-        if ($updated > 0) {
-            $this->entityManager->flush();
+        return 1 === count($products) ? reset($products) : null;
+    }
+
+    /**
+     * The channel Pricee read the price on: among the product's channels in
+     * the entry's currency, the one whose hostname is the URL's when several
+     * share that currency.
+     */
+    private function resolveChannel(ProductInterface $product, string $currency, string $url): ?ChannelInterface
+    {
+        $channels = array_values(array_filter(
+            $this->channelRepository->findAll(),
+            static fn (mixed $channel): bool => $channel instanceof ChannelInterface &&
+                $product->hasChannel($channel) &&
+                $channel->getBaseCurrency()?->getCode() === $currency,
+        ));
+
+        if (count($channels) > 1) {
+            $host = strtolower((string) parse_url($url, \PHP_URL_HOST));
+            $channels = array_values(array_filter(
+                $channels,
+                static fn (ChannelInterface $channel): bool => '' !== $host && strtolower((string) $channel->getHostname()) === $host,
+            ));
         }
 
-        return $updated;
+        return 1 === count($channels) ? $channels[0] : null;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private function skip(string $outcome, string $reason, array $entry): string
+    {
+        $this->logger->warning(sprintf('Pricee webhook: entry skipped, %s.', $reason), [
+            'url' => $entry['url'] ?? null,
+            'extId' => $entry['extId'] ?? null,
+        ]);
+
+        return $outcome;
     }
 
     /**

@@ -17,8 +17,6 @@ final class SyncService
 
     private LoggerInterface $logger;
 
-    private const MAX_PRODUCTS = 500;
-
     public function __construct(
         ApiService $apiService,
         UrlGeneratorInterface $router,
@@ -57,9 +55,6 @@ final class SyncService
         $productsCount = 0;
         /** @var ProductInterface $product */
         foreach ($query->toIterable() as $product) {
-            if ($productsCount >= self::MAX_PRODUCTS) {
-                break;
-            }
             $productUrl = $this->router->generate('sylius_shop_product_show', [
                 'slug' => $product->getTranslation()->getSlug(),
             ], UrlGeneratorInterface::ABSOLUTE_URL);

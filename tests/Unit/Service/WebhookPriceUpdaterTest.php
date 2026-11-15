@@ -11,6 +11,7 @@ use PHPUnit\Framework\TestCase;
 use PriceeIO\SyncPlugin\Service\WebhookPriceUpdater;
 use Psr\Log\NullLogger;
 use Sylius\Component\Channel\Repository\ChannelRepositoryInterface;
+use Sylius\Component\Core\Model\CatalogPromotionInterface;
 use Sylius\Component\Core\Model\ChannelInterface;
 use Sylius\Component\Core\Model\ChannelPricingInterface;
 use Sylius\Component\Core\Model\ProductInterface;
@@ -34,92 +35,171 @@ final class WebhookPriceUpdaterTest extends TestCase
         $this->entityManager = $this->createMock(EntityManagerInterface::class);
     }
 
-    public function testUpdatesChannelPricingInMatchingCurrency(): void
+    public function testUpdatesThePriceOfTheProductFoundByItsExtId(): void
     {
-        $eurPricing = $this->createChannelPricing(999);
-        $usdPricing = $this->createChannelPricing(999, times: 0);
-        $channels = [
-            $this->createChannel('WEB_EUR', 'EUR'),
-            $this->createChannel('WEB_USD', 'USD'),
-        ];
-
-        $translation = $this->createTranslationForProduct(
-            $this->createProductWithVariants([$this->createVariant('T_SHIRT_VARIANT', ['WEB_EUR' => $eurPricing, 'WEB_USD' => $usdPricing])]),
-        );
-
-        $this->productTranslationRepository
-            ->method('findBy')
-            ->with(['slug' => 'awesome-t-shirt'])
-            ->willReturn([$translation]);
-        $this->channelRepository->method('findAll')->willReturn($channels);
+        $pricing = $this->createChannelPricing(1000, expectedPrice: 999);
+        $channel = $this->createChannel('WEB_EUR', 'EUR');
+        $this->givenProduct(42, $this->createProduct([$this->createVariant(['WEB_EUR' => $pricing])], [$channel]), [$channel]);
         $this->entityManager->expects($this->once())->method('flush');
 
+        $this->assertSame(WebhookPriceUpdater::UPDATED_PRICE, $this->createUpdater()->updateFromEntry($this->entry()));
+    }
+
+    public function testFindsAProductSyncedWithoutExtIdByItsSlug(): void
+    {
+        $pricing = $this->createChannelPricing(1000, expectedPrice: 999);
+        $channel = $this->createChannel('WEB_EUR', 'EUR');
+        $product = $this->createProduct([$this->createVariant(['WEB_EUR' => $pricing])], [$channel]);
+        $translation = $this->createMock(ProductTranslationInterface::class);
+        $translation->method('getTranslatable')->willReturn($product);
+        $this->productTranslationRepository->method('findBy')->with(['slug' => 'awesome-t-shirt'])->willReturn([$translation]);
+        $this->channelRepository->method('findAll')->willReturn([$channel]);
+
+        $this->assertSame(WebhookPriceUpdater::UPDATED_PRICE, $this->createUpdater()->updateFromEntry($this->entry(['extId' => null])));
+    }
+
+    public function testUnknownExtIdIsSkippedWithoutFallingBackToTheSlug(): void
+    {
+        $this->entityManager->method('find')->willReturn(null);
+        $this->productTranslationRepository->expects($this->never())->method('findBy');
+
+        $this->assertSame(WebhookPriceUpdater::SKIPPED_UNKNOWN_PRODUCT, $this->createUpdater()->updateFromEntry($this->entry()));
+    }
+
+    public function testPriceChangedInTheShopSinceReadIsSkipped(): void
+    {
+        $pricing = $this->createChannelPricing(1500); // the merchant raised it after Pricee read 10.00
+        $channel = $this->createChannel('WEB_EUR', 'EUR');
+        $this->givenProduct(42, $this->createProduct([$this->createVariant(['WEB_EUR' => $pricing])], [$channel]), [$channel]);
+
+        $this->assertSame(WebhookPriceUpdater::SKIPPED_PRICE_CHANGED_IN_SHOP, $this->createUpdater()->updateFromEntry($this->entry()));
+    }
+
+    public function testEntryWithoutTheReadPriceIsSkipped(): void
+    {
+        $entry = $this->entry();
+        unset($entry['currentPriceAmount']);
+
+        $this->assertSame(WebhookPriceUpdater::SKIPPED_NO_READ_PRICE, $this->createUpdater()->updateFromEntry($entry));
+    }
+
+    public function testProductWithSeveralVariantsIsSkipped(): void
+    {
+        $channel = $this->createChannel('WEB_EUR', 'EUR');
+        $variants = [
+            $this->createVariant(['WEB_EUR' => $this->createChannelPricing(1000)]),
+            $this->createVariant(['WEB_EUR' => $this->createChannelPricing(1200)]),
+        ];
+        $this->givenProduct(42, $this->createProduct($variants, [$channel]), [$channel]);
+
+        $this->assertSame(WebhookPriceUpdater::SKIPPED_UNSUPPORTED_TYPE, $this->createUpdater()->updateFromEntry($this->entry()));
+    }
+
+    public function testOnlyTheChannelOfTheUrlIsUpdatedWhenSeveralShareTheCurrency(): void
+    {
+        $shopPricing = $this->createChannelPricing(1000, expectedPrice: 999);
+        $b2bPricing = $this->createChannelPricing(1000);
+        $shop = $this->createChannel('WEB_EUR', 'EUR', 'shop.example.com');
+        $b2b = $this->createChannel('B2B_EUR', 'EUR', 'pro.example.com');
+        $this->givenProduct(42, $this->createProduct([$this->createVariant(['WEB_EUR' => $shopPricing, 'B2B_EUR' => $b2bPricing])], [$shop, $b2b]), [$shop, $b2b]);
+
+        $this->assertSame(WebhookPriceUpdater::UPDATED_PRICE, $this->createUpdater()->updateFromEntry($this->entry()));
+    }
+
+    public function testSeveralChannelsWithoutTheUrlHostAreSkipped(): void
+    {
+        $first = $this->createChannel('WEB_EUR', 'EUR');
+        $second = $this->createChannel('B2B_EUR', 'EUR');
+        $pricings = ['WEB_EUR' => $this->createChannelPricing(1000), 'B2B_EUR' => $this->createChannelPricing(1000)];
+        $this->givenProduct(42, $this->createProduct([$this->createVariant($pricings)], [$first, $second]), [$first, $second]);
+
+        $this->assertSame(WebhookPriceUpdater::SKIPPED_CHANNEL, $this->createUpdater()->updateFromEntry($this->entry()));
+    }
+
+    public function testChannelInAnotherCurrencyIsNotUpdated(): void
+    {
+        $channel = $this->createChannel('WEB_USD', 'USD');
+        $this->givenProduct(42, $this->createProduct([$this->createVariant(['WEB_USD' => $this->createChannelPricing(1000)])], [$channel]), [$channel]);
+
+        $this->assertSame(WebhookPriceUpdater::SKIPPED_CHANNEL, $this->createUpdater()->updateFromEntry($this->entry()));
+    }
+
+    public function testPriceWithACatalogPromotionIsSkipped(): void
+    {
+        $pricing = $this->createChannelPricing(1000, promotions: [$this->createMock(CatalogPromotionInterface::class)]);
+        $channel = $this->createChannel('WEB_EUR', 'EUR');
+        $this->givenProduct(42, $this->createProduct([$this->createVariant(['WEB_EUR' => $pricing])], [$channel]), [$channel]);
+
+        $this->assertSame(WebhookPriceUpdater::SKIPPED_PROMOTION, $this->createUpdater()->updateFromEntry($this->entry()));
+    }
+
+    public function testPriceWithAShownOriginalPriceIsSkipped(): void
+    {
+        $pricing = $this->createChannelPricing(1000, originalPrice: 1200);
+        $channel = $this->createChannel('WEB_EUR', 'EUR');
+        $this->givenProduct(42, $this->createProduct([$this->createVariant(['WEB_EUR' => $pricing])], [$channel]), [$channel]);
+
+        $this->assertSame(WebhookPriceUpdater::SKIPPED_PROMOTION, $this->createUpdater()->updateFromEntry($this->entry()));
+    }
+
+    public function testPriceBelowTheMinimumPriceIsSkipped(): void
+    {
+        $pricing = $this->createChannelPricing(1000, minimumPrice: 999 + 1);
+        $channel = $this->createChannel('WEB_EUR', 'EUR');
+        $this->givenProduct(42, $this->createProduct([$this->createVariant(['WEB_EUR' => $pricing])], [$channel]), [$channel]);
+
+        $this->assertSame(WebhookPriceUpdater::SKIPPED_BELOW_MINIMUM, $this->createUpdater()->updateFromEntry($this->entry()));
+    }
+
+    public function testDisabledProductIsSkipped(): void
+    {
+        $channel = $this->createChannel('WEB_EUR', 'EUR');
+        $this->givenProduct(42, $this->createProduct([$this->createVariant(['WEB_EUR' => $this->createChannelPricing(1000)])], [$channel], enabled: false), [$channel]);
+
+        $this->assertSame(WebhookPriceUpdater::SKIPPED_DISABLED, $this->createUpdater()->updateFromEntry($this->entry()));
+    }
+
+    public function testSamePriceIsNotRewritten(): void
+    {
+        $channel = $this->createChannel('WEB_EUR', 'EUR');
+        $this->givenProduct(42, $this->createProduct([$this->createVariant(['WEB_EUR' => $this->createChannelPricing(1000)])], [$channel]), [$channel]);
+        $this->entityManager->expects($this->never())->method('flush');
+
+        $this->assertSame(WebhookPriceUpdater::UNCHANGED, $this->createUpdater()->updateFromEntry($this->entry(['priceAmount' => 10.0])));
+    }
+
+    public function testEntriesWithoutCurrencyOrWithAnInvalidPriceAreSkipped(): void
+    {
         $updater = $this->createUpdater();
 
-        $updatedCount = $updater->updateFromEntry([
+        $this->assertSame(WebhookPriceUpdater::SKIPPED_INVALID_ENTRY, $updater->updateFromEntry($this->entry(['priceCurrency' => null])));
+        $this->assertSame(WebhookPriceUpdater::SKIPPED_INVALID_ENTRY, $updater->updateFromEntry($this->entry(['priceAmount' => -5])));
+    }
+
+    /**
+     * @param array<string, mixed> $overrides
+     *
+     * @return array<string, mixed>
+     */
+    private function entry(array $overrides = []): array
+    {
+        return array_merge([
             'url' => 'https://shop.example.com/en_US/products/awesome-t-shirt',
-            'bestPriceAmount' => 9.99,
-            'bestPriceCurrency' => 'eur',
-        ]);
-
-        $this->assertSame(1, $updatedCount);
+            'extId' => '42',
+            'priceAmount' => 9.99,
+            'priceCurrency' => 'eur',
+            // The price of the channel pricings below, as Pricee read it
+            'currentPriceAmount' => 10.0,
+        ], $overrides);
     }
 
-    public function testSkipsEntriesWithoutCurrency(): void
+    /**
+     * @param array<ChannelInterface> $channels
+     */
+    private function givenProduct(int $id, ProductInterface $product, array $channels): void
     {
-        $updater = $this->createUpdater();
-
-        $updatedCount = $updater->updateFromEntry([
-            'url' => 'https://shop.example.com/products/awesome-t-shirt',
-            'bestPriceAmount' => 5.0,
-        ]);
-
-        $this->assertSame(0, $updatedCount);
-        $this->entityManager->expects($this->never())->method('flush');
-    }
-
-    public function testSkipsChannelsWithoutBaseCurrency(): void
-    {
-        $eurPricing = $this->createChannelPricing(999);
-        $unknownPricing = $this->createChannelPricing(999, times: 0);
-        $channels = [
-            $this->createChannel('WEB_EUR', 'EUR'),
-            $this->createChannel('WEB_UNKNOWN', null),
-        ];
-
-        $translation = $this->createTranslationForProduct(
-            $this->createProductWithVariants([$this->createVariant('T_SHIRT_VARIANT', ['WEB_EUR' => $eurPricing, 'WEB_UNKNOWN' => $unknownPricing])]),
-        );
-
-        $this->productTranslationRepository
-            ->method('findBy')
-            ->with(['slug' => 'awesome-t-shirt'])
-            ->willReturn([$translation]);
+        $this->entityManager->method('find')->with(ProductInterface::class, $id)->willReturn($product);
         $this->channelRepository->method('findAll')->willReturn($channels);
-        $this->entityManager->expects($this->once())->method('flush');
-
-        $updater = $this->createUpdater();
-
-        $updatedCount = $updater->updateFromEntry([
-            'url' => 'https://shop.example.com/products/awesome-t-shirt',
-            'bestPriceAmount' => 9.99,
-            'bestPriceCurrency' => 'EUR',
-        ]);
-
-        $this->assertSame(1, $updatedCount);
-    }
-
-    public function testSkipsEntriesWithInvalidPrice(): void
-    {
-        $updater = $this->createUpdater();
-
-        $updatedCount = $updater->updateFromEntry([
-            'url' => 'https://shop.example.com/products/awesome-t-shirt',
-            'bestPriceAmount' => -5,
-        ]);
-
-        $this->assertSame(0, $updatedCount);
-        $this->entityManager->expects($this->never())->method('flush');
     }
 
     private function createUpdater(): WebhookPriceUpdater
@@ -133,69 +213,66 @@ final class WebhookPriceUpdaterTest extends TestCase
     }
 
     /**
-     * @return ProductTranslationInterface&MockObject
+     * @param array<ProductVariantInterface> $variants
+     * @param array<ChannelInterface> $channels the channels the product is sold on
      */
-    private function createTranslationForProduct(ProductInterface $product): ProductTranslationInterface
-    {
-        $translation = $this->createMock(ProductTranslationInterface::class);
-        $translation->method('getTranslatable')->willReturn($product);
-
-        return $translation;
-    }
-
-    /**
-     * @return ProductInterface&MockObject
-     */
-    private function createProductWithVariants(array $variants): ProductInterface
+    private function createProduct(array $variants, array $channels, bool $enabled = true): ProductInterface
     {
         $product = $this->createMock(ProductInterface::class);
         $product->method('getCode')->willReturn('T_SHIRT');
+        $product->method('isEnabled')->willReturn($enabled);
         $product->method('getEnabledVariants')->willReturn(new ArrayCollection($variants));
+        $product->method('hasChannel')->willReturnCallback(static fn (ChannelInterface $channel): bool => in_array($channel, $channels, true));
 
         return $product;
     }
 
     /**
-     * @return ProductVariantInterface&MockObject
+     * @param array<string, ChannelPricingInterface> $channelPricings by channel code
      */
-    private function createVariant(string $code, array $channelPricings): ProductVariantInterface
+    private function createVariant(array $channelPricings): ProductVariantInterface
     {
         $variant = $this->createMock(ProductVariantInterface::class);
         $variant->method('getChannelPricingForChannel')->willReturnCallback(
-            function (ChannelInterface $channel) use ($channelPricings): ?ChannelPricingInterface {
-                return $channelPricings[$channel->getCode()] ?? null;
-            },
+            static fn (ChannelInterface $channel): ?ChannelPricingInterface => $channelPricings[$channel->getCode()] ?? null,
         );
 
         return $variant;
     }
 
-    /**
-     * @return ChannelInterface&MockObject
-     */
-    private function createChannel(string $code, ?string $currencyCode): ChannelInterface
+    private function createChannel(string $code, string $currencyCode, ?string $hostname = null): ChannelInterface
     {
+        $currency = $this->createMock(CurrencyInterface::class);
+        $currency->method('getCode')->willReturn($currencyCode);
+
         $channel = $this->createMock(ChannelInterface::class);
         $channel->method('getCode')->willReturn($code);
-
-        if (null !== $currencyCode) {
-            $currency = $this->createMock(CurrencyInterface::class);
-            $currency->method('getCode')->willReturn($currencyCode);
-            $channel->method('getBaseCurrency')->willReturn($currency);
-        } else {
-            $channel->method('getBaseCurrency')->willReturn(null);
-        }
+        $channel->method('getBaseCurrency')->willReturn($currency);
+        $channel->method('getHostname')->willReturn($hostname);
 
         return $channel;
     }
 
     /**
-     * @return ChannelPricingInterface&MockObject
+     * @param array<CatalogPromotionInterface> $promotions
      */
-    private function createChannelPricing(int $expectedPrice, int $times = 1): ChannelPricingInterface
-    {
+    private function createChannelPricing(
+        int $price,
+        ?int $expectedPrice = null,
+        ?int $originalPrice = null,
+        int $minimumPrice = 0,
+        array $promotions = [],
+    ): ChannelPricingInterface {
         $channelPricing = $this->createMock(ChannelPricingInterface::class);
-        $channelPricing->expects($this->exactly($times))->method('setPrice')->with($expectedPrice);
+        $channelPricing->method('getPrice')->willReturn($price);
+        $channelPricing->method('getOriginalPrice')->willReturn($originalPrice);
+        $channelPricing->method('getMinimumPrice')->willReturn($minimumPrice);
+        $channelPricing->method('getAppliedPromotions')->willReturn(new ArrayCollection($promotions));
+        if (null === $expectedPrice) {
+            $channelPricing->expects($this->never())->method('setPrice');
+        } else {
+            $channelPricing->expects($this->once())->method('setPrice')->with($expectedPrice);
+        }
 
         return $channelPricing;
     }

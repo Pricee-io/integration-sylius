@@ -60,14 +60,23 @@ final class WebhookController
             return $this->failure($rejection, 401);
         }
 
-        $updatedCount = 0;
+        // A large call writes many prices
+        @set_time_limit(300);
+
+        $outcomes = [];
         foreach ($data as $entry) {
             if (is_array($entry)) {
-                $updatedCount += $this->priceUpdater->updateFromEntry($entry);
+                $outcome = $this->priceUpdater->updateFromEntry($entry);
+                $outcomes[$outcome] = ($outcomes[$outcome] ?? 0) + 1;
             }
         }
 
-        return new JsonResponse(['success' => true, 'updated' => $updatedCount]);
+        return new JsonResponse([
+            'success' => true,
+            'updated' => $outcomes[WebhookPriceUpdater::UPDATED_PRICE] ?? 0,
+            // How many entries were updated, unchanged or skipped, and why
+            'outcomes' => $outcomes,
+        ]);
     }
 
     /**

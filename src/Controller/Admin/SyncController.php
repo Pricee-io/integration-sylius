@@ -17,6 +17,9 @@ use Symfony\Component\HttpFoundation\Response;
 
 final class SyncController extends AbstractController
 {
+    /** Products synced per request: the page sends one request per batch, so each stays short whatever the selection */
+    public const BATCH_SIZE = 50;
+
     /**
      * @param TaxonRepositoryInterface<TaxonInterface> $taxonRepository
      */
@@ -77,16 +80,26 @@ final class SyncController extends AbstractController
             ], 400);
         }
 
-        // Resolve products from selected categories
+        // Batch cursor: the sync goes on after the last product of the previous batch
+        $afterId = max(0, (int) $request->request->get('after_id'));
+
+        // Resolve products from selected categories, each once, in ID order
         $idsQb = $this->entityManager->createQueryBuilder()
-            ->select('p.id')
+            ->select('DISTINCT p.id')
             ->from('Sylius\\Component\\Core\\Model\\Product', 'p')
             ->join('p.productTaxons', 'pt')
             ->join('pt.taxon', 't')
             ->andWhere('t.code IN (:codes)')
             ->andWhere('p.enabled = true')
+            ->orderBy('p.id', 'ASC')
             ->setParameter('codes', $categoryCodes);
-        $productIds = array_column($idsQb->getQuery()->getScalarResult(), 'id');
+        $allIds = array_map('intval', array_column($idsQb->getQuery()->getScalarResult(), 'id'));
+        $remainingIds = array_values(array_filter($allIds, static fn (int $id): bool => $id > $afterId));
+        $productIds = array_slice($remainingIds, 0, self::BATCH_SIZE);
+
+        if ([] === $productIds) {
+            return new JsonResponse(['success' => true, 'synced' => 0, 'failed' => 0, 'last_id' => $afterId, 'done' => true, 'total' => count($allIds)]);
+        }
 
         $query = $this->entityManager->createQueryBuilder()
             ->select('p')
@@ -110,6 +123,10 @@ final class SyncController extends AbstractController
         return new JsonResponse([
             'success' => true,
             'synced' => $productsCount,
+            'failed' => count($productIds) - $productsCount,
+            'last_id' => end($productIds),
+            'done' => count($remainingIds) <= self::BATCH_SIZE,
+            'total' => count($allIds),
         ]);
     }
 }
