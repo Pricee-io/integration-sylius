@@ -63,12 +63,13 @@ final class WebhookController
         // A large call writes many prices
         @set_time_limit(300);
 
+        $results = [];
         $outcomes = [];
         foreach ($data as $entry) {
-            if (is_array($entry)) {
-                $outcome = $this->priceUpdater->updateFromEntry($entry);
-                $outcomes[$outcome] = ($outcomes[$outcome] ?? 0) + 1;
-            }
+            // validateEntries() refused the call if any entry was not an array
+            $outcome = is_array($entry) ? $this->priceUpdater->updateFromEntry($entry) : WebhookPriceUpdater::SKIPPED_INVALID_ENTRY;
+            $results[] = $outcome;
+            $outcomes[$outcome] = ($outcomes[$outcome] ?? 0) + 1;
         }
 
         return new JsonResponse([
@@ -76,6 +77,8 @@ final class WebhookController
             'updated' => $outcomes[WebhookPriceUpdater::UPDATED_PRICE] ?? 0,
             // How many entries were updated, unchanged or skipped, and why
             'outcomes' => $outcomes,
+            // The outcome of each entry, in payload order
+            'results' => $results,
         ]);
     }
 

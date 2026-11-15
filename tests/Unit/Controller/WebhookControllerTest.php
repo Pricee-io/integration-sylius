@@ -110,7 +110,7 @@ final class WebhookControllerTest extends TestCase
         $this->assertSame(200, $response->getStatusCode());
         // Entries without a currency: counted by outcome, nothing updated
         $this->assertSame(
-            ['success' => true, 'updated' => 0, 'outcomes' => ['skipped_invalid_entry' => 2]],
+            ['success' => true, 'updated' => 0, 'outcomes' => ['skipped_invalid_entry' => 2], 'results' => ['skipped_invalid_entry', 'skipped_invalid_entry']],
             json_decode((string) $response->getContent(), true),
         );
     }
