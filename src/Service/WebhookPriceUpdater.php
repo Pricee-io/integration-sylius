@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PriceeIO\SyncPlugin\Service;
 
 use Doctrine\ORM\EntityManagerInterface;
+use PriceeIO\SyncPlugin\Helper\Params;
 use Psr\Log\LoggerInterface;
 use Sylius\Component\Channel\Repository\ChannelRepositoryInterface;
 use Sylius\Component\Core\Model\ChannelInterface;
@@ -52,15 +53,18 @@ final class WebhookPriceUpdater
         private ChannelRepositoryInterface $channelRepository,
         private EntityManagerInterface $entityManager,
         private LoggerInterface $logger,
+        private Params $params,
     ) {
     }
 
     /**
      * @param array<string, mixed> $entry
+     * @param ?string $channelCode the channel whose own secret signed the call,
+     *                             null for the shared secret (the channels without their own one)
      *
      * @return string the outcome of the entry (one of the constants)
      */
-    public function updateFromEntry(array $entry): string
+    public function updateFromEntry(array $entry, ?string $channelCode = null): string
     {
         $url = $entry['url'] ?? null;
         $amount = $entry['priceAmount'] ?? null;
@@ -98,9 +102,9 @@ final class WebhookPriceUpdater
             return $this->skip(self::SKIPPED_UNSUPPORTED_TYPE, 'product with several variants', $entry);
         }
 
-        $channel = $this->resolveChannel($product, $currency, $url);
+        $channel = $this->resolveChannel($product, $currency, $url, $channelCode);
         if (null === $channel) {
-            return $this->skip(self::SKIPPED_CHANNEL, 'no single channel of the product matches the currency and URL', $entry);
+            return $this->skip(self::SKIPPED_CHANNEL, 'no single channel of the product matches the webhook secret, the currency and the URL', $entry);
         }
 
         /** @var CoreProductVariantInterface $variant */
@@ -179,15 +183,18 @@ final class WebhookPriceUpdater
     }
 
     /**
-     * The channel Pricee read the price on: among the product's channels in
-     * the entry's currency, the one whose hostname is the URL's when several
-     * share that currency.
+     * The channel Pricee read the price on: among the product's channels the
+     * call may update, in the entry's currency, the one whose hostname is the
+     * URL's when several remain.
      */
-    private function resolveChannel(ProductInterface $product, string $currency, string $url): ?ChannelInterface
+    private function resolveChannel(ProductInterface $product, string $currency, string $url, ?string $channelCode): ?ChannelInterface
     {
+        // A channel with its own secret is only updated by calls signed with it
+        $ownSecrets = $this->params->getChannelWebhookSecrets();
         $channels = array_values(array_filter(
             $this->channelRepository->findAll(),
             static fn (mixed $channel): bool => $channel instanceof ChannelInterface &&
+                (null === $channelCode ? !isset($ownSecrets[(string) $channel->getCode()]) : $channel->getCode() === $channelCode) &&
                 $product->hasChannel($channel) &&
                 $channel->getBaseCurrency()?->getCode() === $currency,
         ));

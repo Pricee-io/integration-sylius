@@ -4,8 +4,10 @@ sylius:
             priceeio_sync_plugin:
                 index:
                     title: "Pricee.io → Synchronisation"
-                    credentials_missing: "Please configure your Pricee.io API key with environment variables."
+                    credentials_missing: "Please configure the Pricee.io API key of this channel (see the plugin README)."
                     subtitle: "Sync products by category"
+                    channel: "Channel"
+                    channel_help: "Each channel is a website on Pricee.io: products are synced with the API key of the chosen channel."
                     categories_title: "Categories"
                     sync_button: "Sync products"
                     loading: "Loading…"

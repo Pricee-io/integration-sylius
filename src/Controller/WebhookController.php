@@ -17,6 +17,9 @@ use Symfony\Component\HttpFoundation\Request;
  * The payload is a JSON array of entries signed with HMAC-SHA256 over the raw
  * body using the webhook secret (`X-Signature` header). Each entry carries a
  * `timestamp` and a `nonce` for replay protection, as sent by the Pricee.io app.
+ *
+ * Each channel is one website on Pricee.io, which signs with that website's
+ * secret: the secret that matches tells which channel the call may update.
  */
 final class WebhookController
 {
@@ -35,7 +38,8 @@ final class WebhookController
     public function __invoke(Request $request): JsonResponse
     {
         $webhookConfig = $this->params->getWebhookConfig();
-        if (!$webhookConfig['enabled'] || '' === $webhookConfig['secret']) {
+        $channelSecrets = $this->params->getChannelWebhookSecrets();
+        if (!$webhookConfig['enabled'] || ('' === $webhookConfig['secret'] && [] === $channelSecrets)) {
             return $this->failure('Webhook not configured', 401);
         }
 
@@ -46,7 +50,8 @@ final class WebhookController
             return $this->failure('Missing body or signature', 400);
         }
 
-        if (!hash_equals(hash_hmac('sha256', $body, $webhookConfig['secret']), $signature)) {
+        $scope = $this->signatureScope($body, $signature, $webhookConfig['secret'], $channelSecrets);
+        if (false === $scope) {
             return $this->failure('Invalid signature', 401);
         }
 
@@ -67,7 +72,7 @@ final class WebhookController
         $outcomes = [];
         foreach ($data as $entry) {
             // validateEntries() refused the call if any entry was not an array
-            $outcome = is_array($entry) ? $this->priceUpdater->updateFromEntry($entry) : WebhookPriceUpdater::SKIPPED_INVALID_ENTRY;
+            $outcome = is_array($entry) ? $this->priceUpdater->updateFromEntry($entry, $scope) : WebhookPriceUpdater::SKIPPED_INVALID_ENTRY;
             $results[] = $outcome;
             $outcomes[$outcome] = ($outcomes[$outcome] ?? 0) + 1;
         }
@@ -83,17 +88,40 @@ final class WebhookController
     }
 
     /**
+     * The channel the call may update: the code of the channel whose own
+     * secret signed it, null when signed with the shared secret (the channels
+     * without their own one), false when no secret matches.
+     *
+     * @param array<string, string> $channelSecrets
+     */
+    private function signatureScope(string $body, string $signature, string $sharedSecret, array $channelSecrets): string|false|null
+    {
+        foreach ($channelSecrets as $channelCode => $secret) {
+            if (hash_equals(hash_hmac('sha256', $body, $secret), $signature)) {
+                // A numeric channel code is an integer array key
+                return (string) $channelCode;
+            }
+        }
+
+        if ('' !== $sharedSecret && hash_equals(hash_hmac('sha256', $body, $sharedSecret), $signature)) {
+            return null;
+        }
+
+        return false;
+    }
+
+    /**
      * Replay protection: each entry must carry a fresh timestamp and a nonce
      * that has not been used within the accepted window. The sender uses a
      * single nonce for the whole batch, so nonces are checked once per payload,
-     * not once per entry. Returns null when valid, or the rejection reason
-     * otherwise.
+     * not once per entry, and only consumed once the whole call is accepted.
+     * Returns null when valid, or the rejection reason otherwise.
      *
      * @param array<mixed> $data
      */
     private function validateEntries(array $data): ?string
     {
-        $seenNonces = [];
+        $nonceKeys = [];
 
         foreach ($data as $entry) {
             if (!is_array($entry)) {
@@ -111,19 +139,21 @@ final class WebhookController
                 return 'Expired webhook payload';
             }
 
-            $nonceKey = 'priceeio_nonce_' . hash('sha256', $nonce);
-            if (isset($seenNonces[$nonceKey])) {
-                continue;
-            }
-            $seenNonces[$nonceKey] = true;
+            $nonceKeys['priceeio_nonce_' . hash('sha256', $nonce)] = true;
+        }
 
+        $items = [];
+        foreach (array_keys($nonceKeys) as $nonceKey) {
             $item = $this->cacheApp->getItem($nonceKey);
             if ($item->isHit()) {
                 $this->logger->info('Pricee webhook: replayed request rejected.', ['nonce_hash' => $nonceKey]);
 
                 return 'Replayed webhook payload';
             }
+            $items[] = $item;
+        }
 
+        foreach ($items as $item) {
             $item->set(true);
             $item->expiresAfter(self::NONCE_TTL);
             $this->cacheApp->save($item);

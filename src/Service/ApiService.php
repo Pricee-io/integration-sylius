@@ -30,14 +30,14 @@ final class ApiService
     }
 
     /**
-     * Log in with the configured API key. Returns the JWT and, for a key
+     * Log in with the API key of a channel. Returns the JWT and, for a key
      * scoped to a website, the IRI of that website (null for an account-wide key).
      *
      * @return array{token: string, website: ?string}
      */
-    public function login(): array
+    public function login(?string $channelCode = null): array
     {
-        $credentials = $this->params->getCredentials();
+        $credentials = $this->params->getCredentials($channelCode);
 
         try {
             $response = $this->httpClient->request('POST', self::BASE_URL . 'login', [

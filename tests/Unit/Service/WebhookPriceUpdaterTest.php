@@ -8,6 +8,7 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use PriceeIO\SyncPlugin\Helper\Params;
 use PriceeIO\SyncPlugin\Service\WebhookPriceUpdater;
 use Psr\Log\NullLogger;
 use Sylius\Component\Channel\Repository\ChannelRepositoryInterface;
@@ -19,6 +20,7 @@ use Sylius\Component\Core\Model\ProductVariantInterface;
 use Sylius\Component\Currency\Model\CurrencyInterface;
 use Sylius\Component\Product\Model\ProductTranslationInterface;
 use Sylius\Component\Product\Repository\ProductTranslationRepositoryInterface;
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 
 final class WebhookPriceUpdaterTest extends TestCase
 {
@@ -116,6 +118,30 @@ final class WebhookPriceUpdaterTest extends TestCase
         $this->assertSame(WebhookPriceUpdater::SKIPPED_CHANNEL, $this->createUpdater()->updateFromEntry($this->entry()));
     }
 
+    public function testACallSignedWithTheOwnSecretOfAChannelOnlyUpdatesThatChannel(): void
+    {
+        $frPricing = $this->createChannelPricing(1000, expectedPrice: 999);
+        $bePricing = $this->createChannelPricing(1000);
+        $fr = $this->createChannel('WEB_FR', 'EUR', 'shop.example.fr');
+        $be = $this->createChannel('WEB_BE', 'EUR', 'shop.example.com');
+        $this->givenProduct(42, $this->createProduct([$this->createVariant(['WEB_FR' => $frPricing, 'WEB_BE' => $bePricing])], [$fr, $be]), [$fr, $be]);
+        $ownSecrets = ['WEB_FR' => ['webhook_secret' => 'fr_secret'], 'WEB_BE' => ['webhook_secret' => 'be_secret']];
+
+        // The entry's URL is on the other channel's host: the secret decides, not the URL
+        $this->assertSame(WebhookPriceUpdater::UPDATED_PRICE, $this->createUpdater($ownSecrets)->updateFromEntry($this->entry(), 'WEB_FR'));
+    }
+
+    public function testTheSharedSecretNeverUpdatesAChannelWithItsOwnSecret(): void
+    {
+        $channel = $this->createChannel('WEB_EUR', 'EUR');
+        $this->givenProduct(42, $this->createProduct([$this->createVariant(['WEB_EUR' => $this->createChannelPricing(1000)])], [$channel]), [$channel]);
+
+        $this->assertSame(
+            WebhookPriceUpdater::SKIPPED_CHANNEL,
+            $this->createUpdater(['WEB_EUR' => ['webhook_secret' => 'own_secret']])->updateFromEntry($this->entry()),
+        );
+    }
+
     public function testChannelInAnotherCurrencyIsNotUpdated(): void
     {
         $channel = $this->createChannel('WEB_USD', 'USD');
@@ -202,13 +228,17 @@ final class WebhookPriceUpdaterTest extends TestCase
         $this->channelRepository->method('findAll')->willReturn($channels);
     }
 
-    private function createUpdater(): WebhookPriceUpdater
+    /**
+     * @param array<string, array<string, string>> $channels the pricee_io_sync.channels configuration
+     */
+    private function createUpdater(array $channels = []): WebhookPriceUpdater
     {
         return new WebhookPriceUpdater(
             $this->productTranslationRepository,
             $this->channelRepository,
             $this->entityManager,
             new NullLogger(),
+            new Params(new ParameterBag(['priceeio.channels' => $channels])),
         );
     }
 

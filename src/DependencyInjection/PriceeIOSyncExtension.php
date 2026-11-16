@@ -15,9 +15,11 @@ final class PriceeIOSyncExtension extends AbstractResourceExtension implements P
 {
     use PrependDoctrineMigrationsTrait;
 
-    /** @psalm-suppress UnusedVariable */
     public function load(array $configs, ContainerBuilder $container): void
     {
+        $config = $this->processConfiguration(new Configuration(), $configs);
+        $container->setParameter('priceeio.channels', $config['channels']);
+
         $loader = new YamlFileLoader($container, new FileLocator(__DIR__ . '/../../config'));
 
         $loader->load('services.yaml');

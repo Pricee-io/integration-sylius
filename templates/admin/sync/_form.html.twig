@@ -1,5 +1,7 @@
 {% set categories = hookable_metadata.context.categories %}
 {% set credentialsSet = hookable_metadata.context.credentialsSet %}
+{% set channels = hookable_metadata.context.channels %}
+{% set channelCode = hookable_metadata.context.channelCode %}
 
 <div class="container-xl">
     {% if not credentialsSet %}
@@ -13,6 +15,21 @@
 
         <form id="priceeio-sync-form">
             <input type="hidden" name="_token" value="{{ csrf_token('priceeio_categories') }}">
+
+            <!-- Channel: each one is a website on Pricee.io, with its own API key -->
+            {% if channels|length > 1 %}
+                <div class="mb-4">
+                    <label class="form-label" for="priceeio-sync-channel">{{ 'sylius.ui.admin.priceeio_sync_plugin.index.channel'|trans }}</label>
+                    <select class="form-select" id="priceeio-sync-channel" name="channel">
+                        {% for channel in channels %}
+                            <option value="{{ channel.code }}" {{ channel.code == channelCode ? 'selected' }}>{{ channel.name }} ({{ channel.url }})</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">{{ 'sylius.ui.admin.priceeio_sync_plugin.index.channel_help'|trans }}</div>
+                </div>
+            {% else %}
+                <input type="hidden" name="channel" value="{{ channelCode }}">
+            {% endif %}
 
             <!-- Categories -->
             <h4>{{ 'sylius.ui.admin.priceeio_sync_plugin.index.categories_title'|trans }}</h4>
@@ -70,9 +87,11 @@ document.getElementById('priceeio-sync-form').addEventListener('submit', functio
     };
     const syncedMessage = () => synced + ' ' + '{{ "sylius.ui.admin.priceeio_sync_plugin.index.synced_products"|trans|e('js') }}'
         + (failed > 0 ? ' ' + failed + ' ' + '{{ "sylius.ui.admin.priceeio_sync_plugin.index.failed_products"|trans|e('js') }}' : '');
-    const fail = () => {
+    const fail = (message) => {
         finish();
-        show('danger', '{{ "sylius.ui.admin.priceeio_sync_plugin.index.sync_error"|trans|e('js') }}' + (synced + failed > 0 ? ' (' + syncedMessage() + ')' : ''));
+        show('danger', '{{ "sylius.ui.admin.priceeio_sync_plugin.index.sync_error"|trans|e('js') }}'
+            + (message ? ' ' + message : '')
+            + (synced + failed > 0 ? ' (' + syncedMessage() + ')' : ''));
     };
 
     button.disabled = true;
@@ -93,7 +112,7 @@ document.getElementById('priceeio-sync-form').addEventListener('submit', functio
         .then(r => r.json())
         .then(data => {
             if (!data.success) {
-                fail();
+                fail(data.error);
 
                 return;
             }
@@ -110,9 +129,19 @@ document.getElementById('priceeio-sync-form').addEventListener('submit', functio
             show('info', '{{ "sylius.ui.admin.priceeio_sync_plugin.index.sync_progress"|trans|e('js') }} ' + (synced + failed) + ' / ' + data.total);
             syncBatch(data.last_id);
         })
-        .catch(fail);
+        .catch(() => fail());
     };
 
     syncBatch(0);
 });
+
+// The categories and their product counts are the chosen channel's
+const channelSelect = document.getElementById('priceeio-sync-channel');
+if (channelSelect) {
+    channelSelect.addEventListener('change', function () {
+        const url = new URL(window.location.href);
+        url.searchParams.set('channel', this.value);
+        window.location.href = url.toString();
+    });
+}
 </script>

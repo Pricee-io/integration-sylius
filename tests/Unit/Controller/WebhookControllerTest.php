@@ -14,7 +14,7 @@ use Psr\Log\NullLogger;
 use Sylius\Component\Channel\Repository\ChannelRepositoryInterface;
 use Sylius\Component\Product\Repository\ProductTranslationRepositoryInterface;
 use Symfony\Component\Cache\Adapter\ArrayAdapter;
-use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -100,6 +100,37 @@ final class WebhookControllerTest extends TestCase
         $this->assertSame(401, $second->getStatusCode());
     }
 
+    public function testARefusedCallDoesNotUseUpItsNonce(): void
+    {
+        // Refused for its stale second entry: the nonce stays usable for the fresh call
+        $refused = $this->call([$this->entry(), $this->entry(timestamp: time() - 3600)]);
+        $accepted = $this->call([$this->entry()]);
+
+        $this->assertSame(401, $refused->getStatusCode());
+        $this->assertSame(200, $accepted->getStatusCode());
+    }
+
+    public function testAcceptsACallSignedWithTheOwnSecretOfAChannel(): void
+    {
+        $response = $this->call([$this->entry()], secret: 'fr_secret', channels: ['WEB_FR' => ['webhook_secret' => 'fr_secret']]);
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    public function testAcceptsTheOwnSecretOfAChannelWithANumericCode(): void
+    {
+        $response = $this->call([$this->entry()], secret: 'secret_123', channels: ['123' => ['webhook_secret' => 'secret_123']]);
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    public function testAcceptsChannelSecretsWithoutASharedOne(): void
+    {
+        $response = $this->call([$this->entry()], secret: 'fr_secret', sharedSecret: '', channels: ['WEB_FR' => ['webhook_secret' => 'fr_secret']]);
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
     public function testProcessesAValidPayloadWithABatchSharedNonce(): void
     {
         // The sender signs a whole batch with a single nonce shared by every entry
@@ -117,6 +148,7 @@ final class WebhookControllerTest extends TestCase
 
     /**
      * @param array<mixed> $entries
+     * @param array<string, array<string, string>> $channels
      */
     private function call(
         array $entries,
@@ -124,6 +156,8 @@ final class WebhookControllerTest extends TestCase
         ?string $signature = null,
         bool $enabled = true,
         string $secret = self::SECRET,
+        ?string $sharedSecret = null,
+        array $channels = [],
     ): JsonResponse {
         $body ??= json_encode($entries, \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES);
         $signature ??= hash_hmac('sha256', $body, $secret);
@@ -131,9 +165,10 @@ final class WebhookControllerTest extends TestCase
         $request = new Request([], [], [], [], [], [], $body);
         $request->headers->set('X-Signature', $signature);
 
+        $params = $this->createParams($enabled, $sharedSecret ?? ([] === $channels ? $secret : self::SECRET), $channels);
         $controller = new WebhookController(
-            $this->createParams($enabled, $secret),
-            $this->createPriceUpdater(),
+            $params,
+            $this->createPriceUpdater($params),
             $this->cache,
             new NullLogger(),
         );
@@ -154,24 +189,26 @@ final class WebhookControllerTest extends TestCase
         ];
     }
 
-    private function createParams(bool $enabled, string $secret): Params
+    /**
+     * @param array<string, array<string, string>> $channels
+     */
+    private function createParams(bool $enabled, string $secret, array $channels = []): Params
     {
-        $bag = $this->createMock(ParameterBagInterface::class);
-        $bag->method('get')->willReturnMap([
-            ['priceeio.webhook_enabled', $enabled],
-            ['priceeio.webhook_secret', $secret],
-        ]);
-
-        return new Params($bag);
+        return new Params(new ParameterBag([
+            'priceeio.webhook_enabled' => $enabled,
+            'priceeio.webhook_secret' => $secret,
+            'priceeio.channels' => $channels,
+        ]));
     }
 
-    private function createPriceUpdater(): WebhookPriceUpdater
+    private function createPriceUpdater(Params $params): WebhookPriceUpdater
     {
         return new WebhookPriceUpdater(
             $this->productTranslationRepository,
             $this->channelRepository,
             $this->entityManager,
             new NullLogger(),
+            $params,
         );
     }
 }

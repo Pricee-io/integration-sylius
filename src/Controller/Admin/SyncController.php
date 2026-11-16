@@ -8,6 +8,8 @@ use Doctrine\ORM\EntityManagerInterface;
 use PriceeIO\SyncPlugin\Helper\CategoryProductCounter;
 use PriceeIO\SyncPlugin\Helper\Params;
 use PriceeIO\SyncPlugin\Service\SyncService;
+use Sylius\Component\Channel\Repository\ChannelRepositoryInterface;
+use Sylius\Component\Core\Model\ChannelInterface;
 use Sylius\Component\Taxonomy\Model\TaxonInterface;
 use Sylius\Component\Taxonomy\Repository\TaxonRepositoryInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -15,6 +17,10 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * A sync targets exactly one channel, chosen on the page: each channel is one
+ * website on Pricee.io, with its own API key.
+ */
 final class SyncController extends AbstractController
 {
     /** Products synced per request: the page sends one request per batch, so each stays short whatever the selection */
@@ -22,9 +28,11 @@ final class SyncController extends AbstractController
 
     /**
      * @param TaxonRepositoryInterface<TaxonInterface> $taxonRepository
+     * @param ChannelRepositoryInterface<\Sylius\Component\Channel\Model\ChannelInterface> $channelRepository
      */
     public function __construct(
         private TaxonRepositoryInterface $taxonRepository,
+        private ChannelRepositoryInterface $channelRepository,
         private EntityManagerInterface $entityManager,
         private SyncService $syncService,
         private Params $params,
@@ -33,32 +41,38 @@ final class SyncController extends AbstractController
     }
 
     /** GET: show form */
-    public function index(): Response
+    public function index(Request $request): Response
     {
-        $credentialsSet = true;
+        $channels = $this->enabledChannels();
+        $channel = $this->selectedChannel($channels, $request);
 
-        $credentials = $this->params->getCredentials();
-        if (empty($credentials['clientId']) || empty($credentials['apiKey'])) {
-            $credentialsSet = false;
-        }
-
-        $categories = $this->taxonRepository->findBy(
-            ['enabled' => true],
-            ['position' => 'ASC'],
-        );
+        $credentials = $this->params->getCredentials($channel?->getCode());
+        $credentialsSet = '' !== $credentials['clientId'] && '' !== $credentials['apiKey'];
 
         $categoriesWithCount = [];
-        foreach ($categories as $category) {
-            $categoriesWithCount[] = [
-                'code' => $category->getCode(),
-                'name' => $category->getName(),
-                'productCount' => $this->categoryProductCounter->countByTaxonCode((string) $category->getCode()),
-            ];
+        if (null !== $channel) {
+            $categories = $this->taxonRepository->findBy(
+                ['enabled' => true],
+                ['position' => 'ASC'],
+            );
+            foreach ($categories as $category) {
+                $categoriesWithCount[] = [
+                    'code' => $category->getCode(),
+                    'name' => $category->getName(),
+                    'productCount' => $this->categoryProductCounter->countByTaxonCode((string) $category->getCode(), $channel),
+                ];
+            }
         }
 
         return $this->render('@PriceeIOSyncPlugin/admin/sync/index.html.twig', [
             'credentialsSet' => $credentialsSet,
             'categories' => $categoriesWithCount,
+            'channels' => array_map(static fn (ChannelInterface $c): array => [
+                'code' => $c->getCode(),
+                'name' => $c->getName(),
+                'url' => SyncService::channelUrl($c, $request->getScheme(), $request->getHttpHost()),
+            ], $channels),
+            'channelCode' => $channel?->getCode(),
         ]);
     }
 
@@ -72,6 +86,12 @@ final class SyncController extends AbstractController
             return new JsonResponse(['error' => 'Invalid CSRF token'], 400);
         }
 
+        // Never fall back to another channel than the one chosen on the page
+        $channel = $this->channelRepository->findOneByCode((string) $request->request->get('channel'));
+        if (!$channel instanceof ChannelInterface || !$channel->isEnabled()) {
+            return new JsonResponse(['error' => 'Unknown or disabled channel.'], 400);
+        }
+
         $categoryCodes = $request->request->all('categories');
 
         if (empty($categoryCodes)) {
@@ -83,7 +103,7 @@ final class SyncController extends AbstractController
         // Batch cursor: the sync goes on after the last product of the previous batch
         $afterId = max(0, (int) $request->request->get('after_id'));
 
-        // Resolve products from selected categories, each once, in ID order
+        // The enabled products of the selected categories sold on the channel, each once, in ID order
         $idsQb = $this->entityManager->createQueryBuilder()
             ->select('DISTINCT p.id')
             ->from('Sylius\\Component\\Core\\Model\\Product', 'p')
@@ -91,8 +111,10 @@ final class SyncController extends AbstractController
             ->join('pt.taxon', 't')
             ->andWhere('t.code IN (:codes)')
             ->andWhere('p.enabled = true')
+            ->andWhere(':channel MEMBER OF p.channels')
             ->orderBy('p.id', 'ASC')
-            ->setParameter('codes', $categoryCodes);
+            ->setParameter('codes', $categoryCodes)
+            ->setParameter('channel', $channel);
         $allIds = array_map('intval', array_column($idsQb->getQuery()->getScalarResult(), 'id'));
         $remainingIds = array_values(array_filter($allIds, static fn (int $id): bool => $id > $afterId));
         $productIds = array_slice($remainingIds, 0, self::BATCH_SIZE);
@@ -109,11 +131,10 @@ final class SyncController extends AbstractController
             ->orderBy('p.id', 'ASC')
             ->getQuery();
 
-        // Perform sync via your service
-        $websiteUrl = $request->getSchemeAndHttpHost();
+        $websiteUrl = SyncService::channelUrl($channel, $request->getScheme(), $request->getHttpHost());
 
         try {
-            $productsCount = $this->syncService->syncProducts($websiteUrl, $query);
+            $productsCount = $this->syncService->syncProducts($channel, $websiteUrl, $query);
         } catch (\Exception $e) {
             return new JsonResponse([
                 'error' => $e->getMessage() ?: 'Unknown error during sync.',
@@ -128,5 +149,40 @@ final class SyncController extends AbstractController
             'done' => count($remainingIds) <= self::BATCH_SIZE,
             'total' => count($allIds),
         ]);
+    }
+
+    /**
+     * @return array<int, ChannelInterface>
+     */
+    private function enabledChannels(): array
+    {
+        return array_values(array_filter(
+            $this->channelRepository->findBy(['enabled' => true], ['name' => 'ASC']),
+            static fn (mixed $channel): bool => $channel instanceof ChannelInterface,
+        ));
+    }
+
+    /**
+     * The channel chosen on the page, else the one served on the admin's host, else the first one.
+     *
+     * @param array<int, ChannelInterface> $channels
+     */
+    private function selectedChannel(array $channels, Request $request): ?ChannelInterface
+    {
+        $code = $request->query->get('channel');
+        foreach ($channels as $channel) {
+            if (null !== $code && $channel->getCode() === $code) {
+                return $channel;
+            }
+        }
+
+        $host = strtolower($request->getHost());
+        foreach ($channels as $channel) {
+            if (null !== $channel->getHostname() && strtolower($channel->getHostname()) === $host) {
+                return $channel;
+            }
+        }
+
+        return $channels[0] ?? null;
     }
 }
