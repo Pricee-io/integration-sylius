@@ -1,9 +1,11 @@
+# Under the admin path the shop configured (SYLIUS_ADMIN_ROUTING_PATH_NAME),
+# so the pages stay behind the admin firewall whatever its name
 app_admin_priceeio_sync:
-    path: /admin/priceeio/sync
+    path: /%sylius_admin.path_name%/priceeio/sync
     methods: [GET]
     controller: PriceeIO\SyncPlugin\Controller\Admin\SyncController::index
 
 app_admin_priceeio_sync_run:
-    path: /admin/priceeio/sync/run
+    path: /%sylius_admin.path_name%/priceeio/sync/run
     methods: [POST]
     controller: PriceeIO\SyncPlugin\Controller\Admin\SyncController::run

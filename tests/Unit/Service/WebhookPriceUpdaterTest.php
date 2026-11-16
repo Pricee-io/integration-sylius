@@ -204,6 +204,15 @@ final class WebhookPriceUpdaterTest extends TestCase
         $this->assertSame(WebhookPriceUpdater::UNCHANGED, $this->createUpdater()->updateFromEntry($this->entry()));
     }
 
+    public function testAWriteThatFailsIsThisEntrysOutcomeOnly(): void
+    {
+        $channel = $this->createChannel('WEB_EUR', 'EUR');
+        $this->givenProduct(42, $this->createProduct([$this->createVariant(['WEB_EUR' => $this->createChannelPricing(1000, expectedPrice: 999)])], [$channel]), [$channel]);
+        $this->entityManager->method('flush')->willThrowException(new \RuntimeException('database gone away'));
+
+        $this->assertSame(WebhookPriceUpdater::FAILED, $this->createUpdater()->updateFromEntry($this->entry()));
+    }
+
     public function testEntriesWithoutCurrencyOrWithAnInvalidPriceAreSkipped(): void
     {
         $updater = $this->createUpdater();

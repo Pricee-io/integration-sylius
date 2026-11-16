@@ -8,6 +8,8 @@ services:
         bind:
             # Cache pool used to store webhook nonces for replay protection
             $cacheApp: '@cache.app'
+            # Lock of the webhook nonce check, next to the server's cache
+            $lockDirectory: '%kernel.cache_dir%'
 
     PriceeIO\SyncPlugin\:
         resource: '../src/*'

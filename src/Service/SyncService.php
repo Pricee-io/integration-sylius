@@ -91,14 +91,14 @@ final class SyncService
         }
 
         $normalizedWebsiteUrl = rtrim($websiteUrl, '/');
-        foreach ($this->apiService->getWebsites($login['token']) as $w) {
-            if ($w['@id'] === $login['website'] && $this->websiteHost((string) $w['url']) !== $this->websiteHost($normalizedWebsiteUrl)) {
-                throw new \RuntimeException(sprintf(
-                    'This API key belongs to the Pricee website %s, not to this channel (%s). Use an API key created from the Integrations page of this channel\'s website on Pricee.',
-                    $w['url'],
-                    $normalizedWebsiteUrl,
-                ));
-            }
+        $website = $this->apiService->getWebsite($login['token'], $login['website']);
+        $keyWebsiteUrl = is_string($website['url'] ?? null) ? $website['url'] : '';
+        if ($this->websiteHost($keyWebsiteUrl) !== $this->websiteHost($normalizedWebsiteUrl)) {
+            throw new \RuntimeException(sprintf(
+                'This API key belongs to the Pricee website %s, not to this channel (%s). Use an API key created from the Integrations page of this channel\'s website on Pricee.',
+                $keyWebsiteUrl,
+                $normalizedWebsiteUrl,
+            ));
         }
 
         return $login['website'];

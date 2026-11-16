@@ -26,6 +26,9 @@ final class SyncController extends AbstractController
     /** Products synced per request: the page sends one request per batch, so each stays short whatever the selection */
     public const BATCH_SIZE = 50;
 
+    /** Checked here too, not only by the admin firewall: the sync uses the shop's API keys */
+    private const ADMIN_ROLE = 'ROLE_ADMINISTRATION_ACCESS';
+
     /**
      * @param TaxonRepositoryInterface<TaxonInterface> $taxonRepository
      * @param ChannelRepositoryInterface<\Sylius\Component\Channel\Model\ChannelInterface> $channelRepository
@@ -43,6 +46,8 @@ final class SyncController extends AbstractController
     /** GET: show form */
     public function index(Request $request): Response
     {
+        $this->denyAccessUnlessGranted(self::ADMIN_ROLE);
+
         $channels = $this->enabledChannels();
         $channel = $this->selectedChannel($channels, $request);
 
@@ -79,6 +84,10 @@ final class SyncController extends AbstractController
     /** POST: run sync (AJAX) */
     public function run(Request $request): JsonResponse
     {
+        if (!$this->isGranted(self::ADMIN_ROLE)) {
+            return new JsonResponse(['error' => 'Access denied'], 403);
+        }
+
         if (!$this->isCsrfTokenValid(
             'priceeio_categories',
             (string) $request->request->get('_token'),

@@ -44,6 +44,8 @@ final class WebhookPriceUpdater
 
     public const SKIPPED_BELOW_MINIMUM = 'skipped_below_minimum';
 
+    public const FAILED = 'failed';
+
     /**
      * @param ProductTranslationRepositoryInterface<ProductTranslationInterface> $productTranslationRepository
      * @param ChannelRepositoryInterface<ChannelInterface> $channelRepository
@@ -139,8 +141,17 @@ final class WebhookPriceUpdater
             return $this->skip(self::SKIPPED_BELOW_MINIMUM, sprintf('new price %d is below the minimum price %d', $price, $minimumPrice), $entry);
         }
 
-        $channelPricing->setPrice($price);
-        $this->entityManager->flush();
+        // A write that fails is this entry's outcome, not the whole call's: the
+        // entries already written stay reported as such. After a database error
+        // the entity manager is closed, so the following writes fail the same way
+        try {
+            $channelPricing->setPrice($price);
+            $this->entityManager->flush();
+        } catch (\Throwable $e) {
+            $this->logger->error(sprintf('Pricee webhook: price update failed for product "%s": %s', (string) $product->getCode(), $e->getMessage()));
+
+            return self::FAILED;
+        }
 
         $this->logger->info(sprintf(
             'Pricee webhook: price updated for product "%s" on channel "%s" | Old: %d -> New: %d.',

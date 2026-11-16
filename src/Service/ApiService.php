@@ -13,10 +13,6 @@ final class ApiService
 {
     private const BASE_URL = 'https://app.pricee.io/api/v1/';
 
-    private const API_PAGE_SIZE = 30;
-
-    private const MAX_WEBSITE_PAGES = 20;
-
     private HttpClientInterface $httpClient;
 
     private Params $params;
@@ -73,40 +69,34 @@ final class ApiService
         }
     }
 
-    public function getWebsites(string $bearer): array
+    /**
+     * The website an API key is scoped to, read directly: a key can always
+     * read its own website, however many websites the account has.
+     *
+     * @return array<string, mixed>
+     */
+    public function getWebsite(string $bearer, string $websiteId): array
     {
-        $websites = [];
-        $page = 1;
-
         try {
-            do {
-                $response = $this->httpClient->request('GET', self::BASE_URL . 'websites?page=' . $page, [
-                    'headers' => [
-                        'Content-Type' => 'application/json',
-                        'Authorization' => 'Bearer ' . $bearer,
-                    ],
-                ]);
+            $response = $this->httpClient->request('GET', self::BASE_URL . 'websites/' . $this->extractUuid($websiteId), [
+                'headers' => [
+                    'Accept' => 'application/ld+json',
+                    'Authorization' => 'Bearer ' . $bearer,
+                ],
+            ]);
 
-                $status = $response->getStatusCode();
+            $status = $response->getStatusCode();
+            if (200 !== $status) {
+                throw new \RuntimeException(sprintf(
+                    'Failed to fetch the website of the API key. Status: %d. Response: %s',
+                    $status,
+                    $response->getContent(false),
+                ));
+            }
 
-                if (200 !== $status) {
-                    throw new \RuntimeException(sprintf(
-                        'Failed to fetch websites. Status: %d. Response: %s',
-                        $status,
-                        $response->getContent(false),
-                    ));
-                }
-
-                $data = $response->toArray(false);
-
-                $members = isset($data['member']) && is_array($data['member']) ? $data['member'] : [];
-                $websites = array_merge($websites, $members);
-                ++$page;
-            } while (count($members) >= self::API_PAGE_SIZE && $page <= self::MAX_WEBSITE_PAGES);
-
-            return $websites;
+            return $response->toArray(false);
         } catch (TransportExceptionInterface | ClientExceptionInterface $e) {
-            throw new \RuntimeException('Failed to fetch websites: ' . $e->getMessage(), 0, $e);
+            throw new \RuntimeException('Failed to fetch the website of the API key: ' . $e->getMessage(), 0, $e);
         }
     }
 
@@ -141,6 +131,13 @@ final class ApiService
             $products = $this->lookupProducts($bearer, $websiteUuid, 'extId', $productExtId);
             if ([] === $products) {
                 $products = $this->lookupProducts($bearer, $websiteUuid, 'url', $productUrl);
+
+                // Only a product synced without extId can be adopted by URL:
+                // one with another extId belongs to another shop product
+                $owner = $products[0]['extId'] ?? null;
+                if (null !== $owner && '' !== $owner) {
+                    throw new \RuntimeException(sprintf('URL %s is already tracked on Pricee for product ID %s', $productUrl, is_scalar($owner) ? (string) $owner : ''));
+                }
             }
 
             if ([] !== $products) {

@@ -31,13 +31,22 @@ return [
 ];
 ```
 
-3. Clear cache:
+3. Import the plugin routes in your application `config/routes.yaml` (the sync page and the price webhook):
+
+```yaml
+priceeio_sync:
+    resource: "@PriceeIOSyncPlugin/config/routes.yaml"
+```
+
+The sync page is served under your admin path (`SYLIUS_ADMIN_ROUTING_PATH_NAME`), behind the admin login.
+
+4. Clear cache:
 
 ```bash
 php bin/console cache:clear
 ```
 
-4. Configure your Pricee.io API key credentials with environment variables. Create the API key from the **Integrations** page of this shop's website on Pricee.io: each key is tied to one website.
+5. Configure your Pricee.io API key credentials with environment variables. Create the API key from the **Integrations** page of this shop's website on Pricee.io: each key is tied to one website.
 
 ```bash
 PRICEEIO_CLIENT_ID=your_client_id
@@ -78,21 +87,14 @@ The plugin will automatically:
 
 The plugin exposes a webhook endpoint that receives the prices Pricee.io computes for your products and applies them to their channel pricing. A price is only written for a product with a single variant, on the channel of its page, when it has no catalog promotion, stays above the channel's minimum price, and was not changed in the shop since Pricee.io last read it.
 
-1. Import the webhook route in your application `config/routes.yaml`:
-
-```yaml
-priceeio_sync_webhook:
-    resource: "@PriceeIOSyncPlugin/config/routes/webhook.yaml"
-```
-
-2. Enable the webhook with environment variables:
+1. Enable the webhook with environment variables (its route comes with the plugin routes imported at installation):
 
 ```bash
 PRICEEIO_WEBHOOK_ENABLED=1
 PRICEEIO_WEBHOOK_SECRET=your_webhook_secret
 ```
 
-3. In Pricee.io, configure the webhook URL to:
+2. In Pricee.io, configure the webhook URL to:
 
 ```
 https://your-shop.example.com/priceeio/webhook

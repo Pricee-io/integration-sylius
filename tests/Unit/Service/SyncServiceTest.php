@@ -124,15 +124,21 @@ final class SyncServiceTest extends TestCase
     }
 
     /**
-     * @param array<int, array<string, string>> $websites what GET /websites returns
+     * @param array<int, array<string, string>> $websites the account's websites, each read by GET /websites/{id}
      * @param array<int, mixed> $created the products created, filled by the fake API
      * @param array<string, array<string, string>> $channels the pricee_io_sync.channels configuration
      */
     private function createService(array $websites, array &$created = [], array $channels = []): SyncService
     {
         $httpClient = new MockHttpClient(function (string $method, string $url, array $options) use ($websites, &$created): MockResponse {
-            if ('GET' === $method && str_contains($url, '/websites')) {
-                return new MockResponse((string) json_encode(['member' => $websites]), ['http_code' => 200]);
+            if ('GET' === $method && str_contains($url, '/websites/')) {
+                foreach ($websites as $website) {
+                    if (str_ends_with($url, (string) substr($website['@id'], strrpos($website['@id'], '/') ?: 0))) {
+                        return new MockResponse((string) json_encode($website), ['http_code' => 200]);
+                    }
+                }
+
+                return new MockResponse('{}', ['http_code' => 404]);
             }
             if ('POST' === $method && str_ends_with($url, '/login')) {
                 // Each channel logs in with its own API key

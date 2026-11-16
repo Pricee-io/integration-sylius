@@ -32,6 +32,8 @@ final class WebhookController
         private WebhookPriceUpdater $priceUpdater,
         private CacheItemPoolInterface $cacheApp,
         private LoggerInterface $logger,
+        // Where the lock that makes checking and consuming nonces atomic lives
+        private string $lockDirectory = '',
     ) {
     }
 
@@ -142,24 +144,57 @@ final class WebhookController
             $nonceKeys['priceeio_nonce_' . hash('sha256', $nonce)] = true;
         }
 
-        $items = [];
-        foreach (array_keys($nonceKeys) as $nonceKey) {
-            $item = $this->cacheApp->getItem($nonceKey);
-            if ($item->isHit()) {
-                $this->logger->info('Pricee webhook: replayed request rejected.', ['nonce_hash' => $nonceKey]);
+        // Locked, so of two calls carrying the same nonce at the same time only one gets through
+        $lock = $this->lockNonces();
 
-                return 'Replayed webhook payload';
+        try {
+            $items = [];
+            foreach (array_keys($nonceKeys) as $nonceKey) {
+                $item = $this->cacheApp->getItem($nonceKey);
+                if ($item->isHit()) {
+                    $this->logger->info('Pricee webhook: replayed request rejected.', ['nonce_hash' => $nonceKey]);
+
+                    return 'Replayed webhook payload';
+                }
+                $items[] = $item;
             }
-            $items[] = $item;
+
+            foreach ($items as $item) {
+                $item->set(true);
+                $item->expiresAfter(self::NONCE_TTL);
+                $this->cacheApp->save($item);
+            }
+
+            return null;
+        } finally {
+            if (null !== $lock) {
+                flock($lock, \LOCK_UN);
+                fclose($lock);
+            }
+        }
+    }
+
+    /**
+     * An exclusive lock on a file of the server, held while nonces are
+     * checked and consumed. Without a writable directory the check still
+     * runs, unlocked, as before.
+     *
+     * @return resource|null
+     */
+    private function lockNonces()
+    {
+        $directory = '' !== $this->lockDirectory ? $this->lockDirectory : sys_get_temp_dir();
+        $handle = @fopen($directory . '/priceeio_webhook_nonces.lock', 'c');
+        if (false === $handle) {
+            return null;
+        }
+        if (!flock($handle, \LOCK_EX)) {
+            fclose($handle);
+
+            return null;
         }
 
-        foreach ($items as $item) {
-            $item->set(true);
-            $item->expiresAfter(self::NONCE_TTL);
-            $this->cacheApp->save($item);
-        }
-
-        return null;
+        return $handle;
     }
 
     private function failure(string $message, int $status): JsonResponse
