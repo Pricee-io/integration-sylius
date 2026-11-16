@@ -11,6 +11,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "composer-runtime-api": "^2.0",
         "sylius/sylius": "^2.1"
     },
     "prefer-stable": true,

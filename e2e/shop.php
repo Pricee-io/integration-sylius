@@ -15,6 +15,8 @@ use Doctrine\ORM\EntityManagerInterface;
 use Sylius\Component\Core\Model\ChannelInterface;
 use Sylius\Component\Core\Model\ProductInterface;
 use Sylius\Component\Core\Model\ProductVariantInterface;
+use PriceeIO\SyncPlugin\Controller\WebhookController;
+use Sylius\Bundle\CoreBundle\SyliusCoreBundle;
 use Sylius\TestApplication\Kernel;
 
 const SECRET = 'e2e-webhook-secret';
@@ -158,6 +160,8 @@ function webhook(): void
     [$status, $answer, $body] = sendWebhook([entry($web, 8.0), entry($pro, 7.0, 10.0, 'pro.localhost')]);
     assertSame(200, $status, 'call signed with the shared secret accepted ('.json_encode($answer).')');
     assertSame(['updated_price', 'skipped_channel'], $answer['results'] ?? null, 'shared secret updates the channel without its own secret only');
+    $plugin = ['platform' => 'sylius', 'version' => WebhookController::version()];
+    assertSame($plugin + ['platform_version' => SyliusCoreBundle::VERSION, 'runtime' => 'php', 'runtime_version' => PHP_VERSION], $answer['plugin'] ?? null, 'answer gives the plugin, Sylius version and runtime');
     assertSame([800, 1000], [storedPrice($web, 'E2E_WEB'), storedPrice($pro, 'E2E_PRO')], 'prices in the database');
 
     // Signed with E2E_PRO's own secret: only E2E_PRO is written, whatever the URL's host
@@ -168,8 +172,9 @@ function webhook(): void
     [$status] = sendWebhook([], SECRET, $body);
     assertSame(401, $status, 'replayed call refused');
 
-    [$status] = sendWebhook([entry($web, 5.0, 8.0)], 'wrong-secret');
+    [$status, $answer] = sendWebhook([entry($web, 5.0, 8.0)], 'wrong-secret');
     assertSame(401, $status, 'call with a wrong signature refused');
+    assertSame($plugin, $answer['plugin'] ?? null, 'refused call gives the plugin and its version only');
     assertSame(800, storedPrice($web, 'E2E_WEB'), 'refused calls write nothing');
 
     // A call refused for one stale entry does not use up its nonce: once fixed, it gets through

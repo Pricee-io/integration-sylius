@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace PriceeIO\SyncPlugin\Controller;
 
+use Composer\InstalledVersions;
 use PriceeIO\SyncPlugin\Helper\Params;
 use PriceeIO\SyncPlugin\Service\WebhookPriceUpdater;
 use Psr\Cache\CacheItemPoolInterface;
 use Psr\Log\LoggerInterface;
+use Sylius\Bundle\CoreBundle\SyliusCoreBundle;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -79,14 +81,14 @@ final class WebhookController
             $outcomes[$outcome] = ($outcomes[$outcome] ?? 0) + 1;
         }
 
-        return new JsonResponse([
+        return $this->answer([
             'success' => true,
             'updated' => $outcomes[WebhookPriceUpdater::UPDATED_PRICE] ?? 0,
             // How many entries were updated, unchanged or skipped, and why
             'outcomes' => $outcomes,
             // The outcome of each entry, in payload order
             'results' => $results,
-        ]);
+        ], accepted: true);
     }
 
     /**
@@ -199,6 +201,29 @@ final class WebhookController
 
     private function failure(string $message, int $status): JsonResponse
     {
-        return new JsonResponse(['success' => false, 'error' => $message], $status);
+        return $this->answer(['success' => false, 'error' => $message], $status);
+    }
+
+    /**
+     * @param array<string, mixed> $answer
+     */
+    private function answer(array $answer, int $status = 200, bool $accepted = false): JsonResponse
+    {
+        // Which plugin and version answered, refused calls included: shown in Pricee's webhook history.
+        // The Sylius version and the runtime (PHP) only to a call signed by Pricee: anyone can read a refused call's answer.
+        $answer['plugin'] = ['platform' => 'sylius', 'version' => self::version()]
+            + ($accepted ? ['platform_version' => SyliusCoreBundle::VERSION, 'runtime' => 'php', 'runtime_version' => \PHP_VERSION] : []);
+
+        return new JsonResponse($answer, $status);
+    }
+
+    // The installed version of the plugin (the release tag), null when Composer does not know it
+    public static function version(): ?string
+    {
+        try {
+            return InstalledVersions::getPrettyVersion('priceeio/integration-sylius');
+        } catch (\OutOfBoundsException) {
+            return null;
+        }
     }
 }

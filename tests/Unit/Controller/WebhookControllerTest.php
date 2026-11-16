@@ -11,6 +11,7 @@ use PriceeIO\SyncPlugin\Controller\WebhookController;
 use PriceeIO\SyncPlugin\Helper\Params;
 use PriceeIO\SyncPlugin\Service\WebhookPriceUpdater;
 use Psr\Log\NullLogger;
+use Sylius\Bundle\CoreBundle\SyliusCoreBundle;
 use Sylius\Component\Channel\Repository\ChannelRepositoryInterface;
 use Sylius\Component\Product\Repository\ProductTranslationRepositoryInterface;
 use Symfony\Component\Cache\Adapter\ArrayAdapter;
@@ -59,6 +60,24 @@ final class WebhookControllerTest extends TestCase
         $response = $this->call([], signature: 'invalid_signature');
 
         $this->assertSame(401, $response->getStatusCode());
+    }
+
+    public function testEveryAnswerGivesThePluginAndItsVersion(): void
+    {
+        $version = WebhookController::version();
+        $this->assertIsString($version);
+
+        // an accepted call also gives the Sylius version and the runtime
+        $this->assertSame(
+            ['platform' => 'sylius', 'version' => $version, 'platform_version' => SyliusCoreBundle::VERSION, 'runtime' => 'php', 'runtime_version' => \PHP_VERSION],
+            json_decode((string) $this->call([$this->entry()])->getContent(), true)['plugin'] ?? null,
+        );
+
+        // a refused call only the plugin: anyone can read its answer
+        $this->assertSame(
+            ['platform' => 'sylius', 'version' => $version],
+            json_decode((string) $this->call([], signature: 'invalid_signature')->getContent(), true)['plugin'] ?? null,
+        );
     }
 
     public function testReturns400WhenPayloadIsNotValidJson(): void
@@ -141,7 +160,7 @@ final class WebhookControllerTest extends TestCase
         $this->assertSame(200, $response->getStatusCode());
         // Entries without a currency: counted by outcome, nothing updated
         $this->assertSame(
-            ['success' => true, 'updated' => 0, 'outcomes' => ['skipped_invalid_entry' => 2], 'results' => ['skipped_invalid_entry', 'skipped_invalid_entry']],
+            ['success' => true, 'updated' => 0, 'outcomes' => ['skipped_invalid_entry' => 2], 'results' => ['skipped_invalid_entry', 'skipped_invalid_entry'], 'plugin' => ['platform' => 'sylius', 'version' => WebhookController::version(), 'platform_version' => SyliusCoreBundle::VERSION, 'runtime' => 'php', 'runtime_version' => \PHP_VERSION]],
             json_decode((string) $response->getContent(), true),
         );
     }
