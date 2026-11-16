@@ -70,7 +70,7 @@
             "vendor/bin/console sylius:fixtures:load -n"
         ],
         "frontend-clear": [
-            "cd vendor/sylius/test-application && yarn install && yarn build",
+            "cp tests/TestApplication/yarn.lock vendor/sylius/test-application/yarn.lock && cd vendor/sylius/test-application && yarn install && yarn build",
             "vendor/bin/console assets:install"
         ],
         "test-app-init": [
