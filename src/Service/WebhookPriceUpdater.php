@@ -124,6 +124,12 @@ final class WebhookPriceUpdater
 
         // Sylius stores prices as integers in minor units
         $price = (int) round((float) $amount * 100);
+        // Checked first: a retried call whose first attempt was applied finds
+        // the price already set, not changed in the shop
+        if ($price === $currentPrice) {
+            return self::UNCHANGED;
+        }
+
         if ($currentPrice !== (int) round((float) $readPrice * 100)) {
             return $this->skip(self::SKIPPED_PRICE_CHANGED_IN_SHOP, sprintf('the shop price %d is no longer the one Pricee read', $currentPrice), $entry);
         }
@@ -131,10 +137,6 @@ final class WebhookPriceUpdater
         $minimumPrice = $channelPricing->getMinimumPrice();
         if ($minimumPrice > 0 && $price < $minimumPrice) {
             return $this->skip(self::SKIPPED_BELOW_MINIMUM, sprintf('new price %d is below the minimum price %d', $price, $minimumPrice), $entry);
-        }
-
-        if ($price === $currentPrice) {
-            return self::UNCHANGED;
         }
 
         $channelPricing->setPrice($price);

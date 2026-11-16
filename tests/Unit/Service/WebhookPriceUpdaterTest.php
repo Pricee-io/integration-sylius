@@ -194,6 +194,16 @@ final class WebhookPriceUpdaterTest extends TestCase
         $this->assertSame(WebhookPriceUpdater::UNCHANGED, $this->createUpdater()->updateFromEntry($this->entry(['priceAmount' => 10.0])));
     }
 
+    public function testARetriedCallWhoseFirstAttemptWasAppliedIsUnchanged(): void
+    {
+        // The first attempt set 9.99 but its answer came too late: the retry still carries the 10.00 Pricee read
+        $channel = $this->createChannel('WEB_EUR', 'EUR');
+        $this->givenProduct(42, $this->createProduct([$this->createVariant(['WEB_EUR' => $this->createChannelPricing(999)])], [$channel]), [$channel]);
+        $this->entityManager->expects($this->never())->method('flush');
+
+        $this->assertSame(WebhookPriceUpdater::UNCHANGED, $this->createUpdater()->updateFromEntry($this->entry()));
+    }
+
     public function testEntriesWithoutCurrencyOrWithAnInvalidPriceAreSkipped(): void
     {
         $updater = $this->createUpdater();
