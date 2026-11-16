@@ -7,6 +7,7 @@ namespace Tests\PriceeIO\SyncPlugin\Unit\Service;
 use PHPUnit\Framework\TestCase;
 use PriceeIO\SyncPlugin\Helper\Params;
 use PriceeIO\SyncPlugin\Service\ApiService;
+use Symfony\Component\Cache\Adapter\ArrayAdapter;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
@@ -37,6 +38,37 @@ final class ApiServiceTest extends TestCase
             $this->assertStringContainsString('already tracked on Pricee for product ID 9', $e->getMessage());
         }
         $this->assertSame([], $patches);
+    }
+
+    public function testReusesTheLoginOfAPreviousBatchUnlessAFreshOneIsAsked(): void
+    {
+        // Pricee allows few logins per minute: a large sync must not log in at each batch
+        $logins = 0;
+        $httpClient = new MockHttpClient(function () use (&$logins): MockResponse {
+            ++$logins;
+
+            return new MockResponse((string) json_encode(['token' => 'token-' . $logins, 'website' => self::WEBSITE_ID]), ['http_code' => 200]);
+        });
+        $service = new ApiService($httpClient, new Params(new ParameterBag(['priceeio.client_id' => 'client', 'priceeio.api_key' => 'key'])), new ArrayAdapter());
+
+        $this->assertSame('token-1', $service->login()['token']);
+        $this->assertSame('token-1', $service->login()['token']);
+        $this->assertSame('token-2', $service->login(null, true)['token']);
+        $this->assertSame(2, $logins);
+    }
+
+    public function testCallsTheApiBaseUrlGiven(): void
+    {
+        $urls = [];
+        $httpClient = new MockHttpClient(function (string $method, string $url) use (&$urls): MockResponse {
+            $urls[] = $url;
+
+            return new MockResponse((string) json_encode(['token' => 'token', 'website' => self::WEBSITE_ID]), ['http_code' => 200]);
+        });
+
+        (new ApiService($httpClient, new Params(new ParameterBag([])), null, 'http://pricee.test/api/v1'))->login();
+
+        $this->assertSame(['http://pricee.test/api/v1/login'], $urls);
     }
 
     /**

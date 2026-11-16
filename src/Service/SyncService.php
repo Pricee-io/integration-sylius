@@ -40,8 +40,18 @@ final class SyncService
         Query $query,
     ): int {
         $login = $this->apiService->login($channel->getCode());
+
+        try {
+            $websiteId = $this->resolveWebsiteId($login, $websiteUrl);
+        } catch (\RuntimeException $e) {
+            // A reused token refused: log in again, once
+            if (401 !== $e->getCode()) {
+                throw $e;
+            }
+            $login = $this->apiService->login($channel->getCode(), true);
+            $websiteId = $this->resolveWebsiteId($login, $websiteUrl);
+        }
         $bearer = $login['token'];
-        $websiteId = $this->resolveWebsiteId($login, $websiteUrl);
 
         // Product pages are read in the channel's default language, which the admin's may not be
         $localeCode = $channel->getDefaultLocale()?->getCode();

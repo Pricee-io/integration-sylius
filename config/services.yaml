@@ -10,6 +10,7 @@ services:
             $cacheApp: '@cache.app'
             # Lock of the webhook nonce check, next to the server's cache
             $lockDirectory: '%kernel.cache_dir%'
+            $apiBaseUrl: '%env(default:priceeio.default_api_base_url:PRICEEIO_API_BASE_URL)%'
 
     PriceeIO\SyncPlugin\:
         resource: '../src/*'
@@ -20,6 +21,7 @@ services:
         tags: ['controller.service_arguments']
 
 parameters:
+    priceeio.default_api_base_url: !php/const PriceeIO\SyncPlugin\Service\ApiService::DEFAULT_BASE_URL
     priceeio.client_id: '%env(PRICEEIO_CLIENT_ID)%'
     priceeio.api_key: '%env(PRICEEIO_API_KEY)%'
     priceeio.webhook_enabled: '%env(bool:PRICEEIO_WEBHOOK_ENABLED)%'
