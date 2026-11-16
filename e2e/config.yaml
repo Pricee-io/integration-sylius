@@ -1,0 +1,65 @@
+# Configuration of the end-to-end shop (see e2e/run.sh), imported by the test
+# application on top of tests/TestApplication/config/config.yaml.
+
+# Two channels: E2E_PRO has its own webhook secret, E2E_WEB uses the shared
+# PRICEEIO_WEBHOOK_SECRET; both log in with the PRICEEIO_* API key
+pricee_io_sync:
+    channels:
+        E2E_PRO:
+            webhook_secret: 'e2e-pro-webhook-secret'
+
+sylius_fixtures:
+    suites:
+        pricee_e2e:
+            listeners:
+                orm_purger: ~
+            fixtures:
+                locale:
+                    options:
+                        locales: ['en_US']
+                currency:
+                    options:
+                        currencies: ['EUR']
+                channel:
+                    options:
+                        custom:
+                            e2e_web:
+                                name: 'E2E Web'
+                                code: 'E2E_WEB'
+                                hostname: 'localhost'
+                                locales: ['en_US']
+                                default_locale: 'en_US'
+                                currencies: ['EUR']
+                                base_currency: 'EUR'
+                                enabled: true
+                            e2e_pro:
+                                name: 'E2E Pro'
+                                code: 'E2E_PRO'
+                                hostname: 'pro.localhost'
+                                locales: ['en_US']
+                                default_locale: 'en_US'
+                                currencies: ['EUR']
+                                base_currency: 'EUR'
+                                enabled: true
+                taxon:
+                    options:
+                        custom:
+                            category:
+                                code: 'MENU_CATEGORY'
+                                name: 'Category'
+                                children:
+                                    - code: 'pricee_e2e'
+                                      name: 'Pricee E2E'
+                                    - code: 'pricee_e2e_webhook'
+                                      name: 'Pricee E2E webhook'
+                admin_user:
+                    options:
+                        custom:
+                            e2e:
+                                email: 'e2e@example.com'
+                                username: 'e2e'
+                                password: 'pricee_e2e_2026'
+                                enabled: true
+                                locale_code: 'en_US'
+                                first_name: 'E2E'
+                                last_name: 'Admin'

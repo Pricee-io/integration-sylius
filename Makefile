@@ -65,3 +65,7 @@ lint:
 
 phpunit:
 	@ENV=$(ENV) DOCKER_USER=$(DOCKER_USER) $(DOCKER_COMPOSE) run --rm php vendor/bin/phpunit
+
+# End-to-end tests in a throwaway shop of their own (see e2e/run.sh)
+e2e:
+	e2e/run.sh
