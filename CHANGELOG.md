@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-11-16
+
+- Sync several channels to their own Pricee websites: choose the channel on the sync page, and set each channel's API key and webhook secret under `pricee_io_sync.channels` (see the README)
+- Product URLs sent to Pricee use the channel's domain and default language, and only products sold on that channel are synced
+- Webhook price updates only change the channel whose secret signed the call
+- A refused webhook call no longer prevents Pricee from retrying it
+- Sync errors now show their message on the sync page
+- Requires Sylius 2.1 or later and PHP 8.2 or later: Sylius 1.14 is no longer supported
+
 ## [1.5.0] - 2026-11-15
 
 - Products are synced to the Pricee website your API key belongs to: create the API key from the Integrations page of your shop's website on Pricee
