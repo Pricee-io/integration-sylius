@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-11-16
+
+- Import the plugin routes with a single file, `@PriceeIOSyncPlugin/config/routes.yaml` (see the README): the sync page and the webhook
+- The sync page follows your admin path and requires admin access, also when the admin path is not `/admin`
+- Large catalogs sync to the end: the sync no longer logs in to Pricee for each batch of products, which Pricee limits
+- A product never takes over on Pricee another product's tracking, when it gets the URL another product had
+- A price that cannot be saved is reported as failed for that product only, instead of failing the whole price update
+- A price update from Pricee retried after a slow answer is now reported as unchanged instead of skipped
+- The check that the API key belongs to the channel's website works however many websites your Pricee account has
+
 ## [2.0.0] - 2026-11-16
 
 - Sync several channels to their own Pricee websites: choose the channel on the sync page, and set each channel's API key and webhook secret under `pricee_io_sync.channels` (see the README)
