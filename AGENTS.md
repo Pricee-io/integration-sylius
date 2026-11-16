@@ -9,7 +9,7 @@ Pricee.io Sylius plugin (`src/`, namespace `PriceeIO\SyncPlugin`): syncs Sylius 
 - `src/Controller/Admin/SyncController.php` — admin sync page (GET) and AJAX sync endpoint (POST, CSRF-protected)
 - `src/Service/SyncService.php` — sync logic; `src/Service/ApiService.php` — Pricee.io API client
 - `src/Helper/Params.php` — reads credentials/config from environment variables
-- `config/routes/admin.yaml` — routes; `config/services/` — DI config
+- `config/routes.yaml` — every route, imported by shops (`config/routes/admin.yaml` under `/%sylius_admin.path_name%`, so behind the admin firewall; `config/routes/webhook.yaml`); `config/services.yaml` — DI config
 - `templates/admin/sync/` — Twig admin templates
 
 ## Development

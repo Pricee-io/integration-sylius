@@ -148,6 +148,8 @@ final class WebhookPriceUpdater
             $channelPricing->setPrice($price);
             $this->entityManager->flush();
         } catch (\Throwable $e) {
+            // Put back, so the next entry's flush never writes the price reported as failed
+            $channelPricing->setPrice($currentPrice);
             $this->logger->error(sprintf('Pricee webhook: price update failed for product "%s": %s', (string) $product->getCode(), $e->getMessage()));
 
             return self::FAILED;

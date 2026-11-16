@@ -206,11 +206,21 @@ final class WebhookPriceUpdaterTest extends TestCase
 
     public function testAWriteThatFailsIsThisEntrysOutcomeOnly(): void
     {
+        $pricing = $this->createMock(ChannelPricingInterface::class);
+        $pricing->method('getPrice')->willReturn(1000);
+        $pricing->method('getMinimumPrice')->willReturn(0);
+        $pricing->method('getAppliedPromotions')->willReturn(new ArrayCollection());
+        $setPrices = [];
+        $pricing->method('setPrice')->willReturnCallback(static function (?int $price) use (&$setPrices): void {
+            $setPrices[] = $price;
+        });
         $channel = $this->createChannel('WEB_EUR', 'EUR');
-        $this->givenProduct(42, $this->createProduct([$this->createVariant(['WEB_EUR' => $this->createChannelPricing(1000, expectedPrice: 999)])], [$channel]), [$channel]);
+        $this->givenProduct(42, $this->createProduct([$this->createVariant(['WEB_EUR' => $pricing])], [$channel]), [$channel]);
         $this->entityManager->method('flush')->willThrowException(new \RuntimeException('database gone away'));
 
         $this->assertSame(WebhookPriceUpdater::FAILED, $this->createUpdater()->updateFromEntry($this->entry()));
+        // Put back, so a later flush never writes the price reported as failed
+        $this->assertSame([999, 1000], $setPrices);
     }
 
     public function testEntriesWithoutCurrencyOrWithAnInvalidPriceAreSkipped(): void
